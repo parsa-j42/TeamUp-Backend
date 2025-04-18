@@ -27,7 +27,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       // Provide a more specific message if available from passport-jwt or jwks-rsa
       let message = 'Unauthorized';
       if (info instanceof Error) {
-        message = info.message; // e.g., "No auth token", "jwt expired"
+        message = info.message; // e.g., "No auth token", "j wt expired"
       } else if (typeof info === 'string') {
         message = info;
       }
