@@ -29,6 +29,8 @@ import { MilestoneModule } from '@milestones/milestone.module';
 import { TaskModule } from '@tasks/task.module';
 import { ApplicationModule } from '@applications/application.module';
 import { BookmarkModule } from '@bookmarks/bookmark.module';
+import { PortfolioProject } from '@portfolio-projects/portfolio-project.entity';
+import { PortfolioProjectModule } from '@portfolio-projects/portfolio-project.module';
 
 @Module({
   imports: [
@@ -61,6 +63,7 @@ import { BookmarkModule } from '@bookmarks/bookmark.module';
           Task,
           Application,
           Bookmark,
+          PortfolioProject,
         ],
         synchronize: configService.get<string>('NODE_ENV') !== 'production', // synchronize: true only for dev
         logging: configService.get<string>('NODE_ENV') !== 'production', // enable logging in dev
@@ -79,6 +82,7 @@ import { BookmarkModule } from '@bookmarks/bookmark.module';
     TaskModule,
     ApplicationModule,
     BookmarkModule,
+    PortfolioProjectModule,
   ],
   controllers: [AppController], // Keep default AppController if needed
   providers: [AppService], // Keep default AppService if needed
