@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PortfolioProjectService } from './portfolio-project.service';
 import { PortfolioProject } from './portfolio-project.entity';
