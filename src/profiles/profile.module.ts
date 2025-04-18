@@ -16,8 +16,8 @@ import { PortfolioProjectModule } from '@portfolio-projects/portfolio-project.mo
     forwardRef(() => AuthModule), // Make AuthModule available (it's global anyway)
     SkillModule, // Import SkillModule
     InterestModule, // Import InterestModule
-    WorkExperienceModule, // Import WorkExperienceModule
-    PortfolioProjectModule,
+    forwardRef(() => WorkExperienceModule),
+    forwardRef(() => PortfolioProjectModule),
   ],
   controllers: [ProfileController],
   providers: [ProfileService],
