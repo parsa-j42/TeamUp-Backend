@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig(async () => {
+  // @ts-ignore
   const tsconfigPaths = (await import('vite-tsconfig-paths')).default;
 
   return {
