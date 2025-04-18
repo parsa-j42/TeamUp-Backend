@@ -45,6 +45,9 @@ import { BookmarkModule } from '@bookmarks/bookmark.module';
         username: configService.get<string>('DB_USERNAME', 'postgres'),
         password: configService.get<string>('DB_PASSWORD', 'postgres'),
         database: configService.get<string>('DB_DATABASE', 'my_database'),
+        ssl: configService.get<boolean>('DB_SSL') ? {
+          rejectUnauthorized: false
+        } : false,
         entities: [
           // --- List ALL Entities Here ---
           User,
