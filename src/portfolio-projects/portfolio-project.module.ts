@@ -9,7 +9,7 @@ import { PortfolioProjectController } from '@portfolio-projects/portfolio-projec
 @Module({
   imports: [
     TypeOrmModule.forFeature([PortfolioProject]),
-    AuthModule,
+    forwardRef(() => AuthModule),
     forwardRef(() => ProfileModule),
   ],
   controllers: [PortfolioProjectController],
