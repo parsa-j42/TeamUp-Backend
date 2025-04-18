@@ -23,6 +23,8 @@ import { SkillDto } from '@skills/dto/skill.dto';
 import { InterestDto } from '@interests/dto/interest.dto';
 import { WorkExperienceDto } from '@work-experiences/dto/work-experience.dto';
 import { User } from '@users/user.entity';
+import { PortfolioProject } from '@portfolio-projects/portfolio-project.entity';
+import { PortfolioProjectDto } from '@portfolio-projects/dto/portfolio-project.dto';
 
 @Injectable()
 export class ProfileService {
@@ -52,6 +54,7 @@ export class ProfileService {
       'skills',
       'interests',
       'workExperiences',
+      'portfolioProjects',
     ]);
 
     const profile = await this.profileRepository.findOne({
@@ -65,6 +68,12 @@ export class ProfileService {
         `Profile not found for user ID "${userId}", but user may exist.`,
       );
       throw new NotFoundException(`Profile not found for user ID "${userId}"`);
+    }
+
+    if (profile.portfolioProjects) {
+      profile.portfolioProjects.sort(
+        (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+      ); // newest first
     }
     return profile;
   }
@@ -169,7 +178,23 @@ export class ProfileService {
    * Maps a UserProfile entity to UserProfileDto.
    * Publicly accessible for other services (like UserService).
    */
-  mapProfileToDto(profile: UserProfile): UserProfileDto {
+  mapProfileToDto(profile: UserProfile): {
+    id: string;
+    userId: string;
+    userType: string | undefined;
+    program: string | undefined;
+    signupExperience: string | undefined;
+    status: string | undefined;
+    institution: string | undefined;
+    bio: string | undefined;
+    avatarUrl: string | undefined;
+    bannerUrl: string | undefined;
+    updatedAt: Date;
+    skills: SkillDto[];
+    interests: InterestDto[];
+    workExperiences: WorkExperienceDto[];
+    portfolioProjects: PortfolioProjectDto[]
+  } {
     return {
       id: profile.id,
       userId: profile.userId,
@@ -191,6 +216,8 @@ export class ProfileService {
         profile.workExperiences?.map((exp) =>
           this.mapWorkExperienceToDto(exp),
         ) || [],
+      portfolioProjects:
+        profile.portfolioProjects?.map(this.mapPortfolioProjectToDto) || [],
     };
   }
 
@@ -214,6 +241,21 @@ export class ProfileService {
       dateRange: experience.dateRange,
       workName: experience.workName,
       description: experience.description,
+    };
+  }
+
+  private mapPortfolioProjectToDto(
+    project: PortfolioProject,
+  ): PortfolioProjectDto {
+    return {
+      id: project.id,
+      profileId: project.profileId,
+      title: project.title,
+      description: project.description,
+      tags: project.tags,
+      imageUrl: project.imageUrl,
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt,
     };
   }
 }

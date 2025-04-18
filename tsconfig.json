@@ -28,6 +28,7 @@
       "@tasks/*": ["src/tasks/*"],
       "@users/*": ["src/users/*"],
       "@work-experiences/*": ["src/work-experiences/*"],
+      "@portfolio-projects/*": ["src/portfolio-projects/*"],
       "@tests/*": ["test/*"]
     },
     "incremental": true,

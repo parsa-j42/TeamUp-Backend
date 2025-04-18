@@ -8,7 +8,7 @@ import { AuthModule } from '@auth/auth.module';
 import { SkillModule } from '@skills/skill.module';
 import { InterestModule } from '@interests/interest.module';
 import { WorkExperienceModule } from '@work-experiences/work-experience.module';
-
+import { PortfolioProjectModule } from '@portfolio-projects/portfolio-project.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([UserProfile]),
@@ -17,6 +17,7 @@ import { WorkExperienceModule } from '@work-experiences/work-experience.module';
     SkillModule, // Import SkillModule
     InterestModule, // Import InterestModule
     WorkExperienceModule, // Import WorkExperienceModule
+    PortfolioProjectModule,
   ],
   controllers: [ProfileController],
   providers: [ProfileService],
