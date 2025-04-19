@@ -5,11 +5,12 @@ import { ProjectController } from './project.controller';
 import { Project } from './project.entity';
 import { ProjectMembership } from './project-membership.entity';
 import { AuthModule } from '@auth/auth.module'; // For guards
-import { UserModule } from '@users/user.module'; // To inject UserService
+import { UserModule } from '@users/user.module';
+import { MilestoneModule } from '@milestones/milestone.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Project, ProjectMembership]),
+    TypeOrmModule.forFeature([Project, ProjectMembership, MilestoneModule]),
     AuthModule, // Provides JwtAuthGuard globally
     UserModule, // Provides UserService
   ],
