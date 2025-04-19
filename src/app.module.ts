@@ -65,7 +65,8 @@ import { PortfolioProjectModule } from '@portfolio-projects/portfolio-project.mo
           Bookmark,
           PortfolioProject,
         ],
-        synchronize: configService.get<string>('NODE_ENV') !== 'production', // synchronize: true only for dev
+        // synchronize: configService.get<string>('NODE_ENV') !== 'production', // synchronize: true only for dev
+        synchronize: true, // True for capcon
         logging: configService.get<string>('NODE_ENV') !== 'production', // enable logging in dev
       }),
       inject: [ConfigService], // Inject ConfigService into the factory
