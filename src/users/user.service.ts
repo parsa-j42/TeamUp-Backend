@@ -72,6 +72,7 @@ export class UserService {
           'profile.skills',
           'profile.interests',
           'profile.workExperiences',
+          'profile.portfolioProjects',
         ]
       : [];
     const user = await this.findOne(userId, relationsToLoad);
