@@ -127,7 +127,6 @@ export class ProjectService {
       .leftJoinAndSelect('project.owner', 'owner')
       .leftJoinAndSelect('project.memberships', 'memberships')
       .leftJoinAndSelect('memberships.user', 'user')
-      .addSelect(['project.startDate', 'project.endDate', 'project.createdAt'])
       // Do not load milestones/tasks for list view by default to keep it lighter
       .skip(skip)
       .take(take)
