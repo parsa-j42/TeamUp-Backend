@@ -6,11 +6,11 @@ import { Project } from './project.entity';
 import { ProjectMembership } from './project-membership.entity';
 import { AuthModule } from '@auth/auth.module'; // For guards
 import { UserModule } from '@users/user.module';
-import { MilestoneModule } from '@milestones/milestone.module';
+import { Milestone } from '@milestones/milestone.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Project, ProjectMembership, MilestoneModule]),
+    TypeOrmModule.forFeature([Project, ProjectMembership, Milestone]),
     AuthModule, // Provides JwtAuthGuard globally
     UserModule, // Provides UserService
   ],
