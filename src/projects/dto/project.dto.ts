@@ -19,11 +19,11 @@ import { UserDto } from '@users/dto/user.dto';
 import { ProjectMemberDto } from './project-membership.dto';
 import { MilestoneDto } from '@milestones/dto/milestone.dto';
 
-// Base DTO with common fields from Create/Update
-class BaseProjectDto {
+// --- DTO for Milestone data within CreateProjectDto ---
+class CreateMilestoneInputDto {
   @ApiProperty({
-    description: 'Title of the project',
-    example: 'Community Garden App',
+    description: 'Title of the milestone',
+    example: 'Initial Design Phase',
   })
   @IsString()
   @IsNotEmpty()
@@ -31,110 +31,103 @@ class BaseProjectDto {
   title: string;
 
   @ApiProperty({
-    description: 'Detailed description of the project',
-    example:
-      'An application to connect local gardeners and manage community garden plots.',
+    description: 'Date of the milestone (ISO 8601 format)',
+    example: '2025-01-15T00:00:00.000Z',
   })
+  @IsDateString()
+  @IsNotEmpty()
+  date: string;
+
+  // 'active' status usually determined later, not at creation typically
+  // @ApiPropertyOptional({ description: 'Is this the initially active milestone?', default: false })
+  // @IsOptional()
+  // @IsBoolean()
+  // active?: boolean;
+}
+// --- End Milestone Input DTO ---
+
+class BaseProjectDto {
+  @ApiProperty({ description: 'Title of the project' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  title: string;
+  @ApiProperty({ description: 'Detailed description of the project' })
   @IsString()
   @IsNotEmpty()
   description: string;
-
   @ApiPropertyOptional({
     description: 'Estimated number of members (e.g., 2-4, 10+)',
-    example: '2-4',
   })
   @IsOptional()
   @IsString()
   numOfMembers?: string;
-
   @ApiPropertyOptional({
     description: 'Type of project (e.g., remote, hybrid)',
-    example: 'Hybrid',
   })
   @IsOptional()
-  @IsString() // Could be enum if values are fixed
+  @IsString()
   projectType?: string;
-
   @ApiPropertyOptional({
     description: 'Mentor request status (e.g., looking, open)',
-    example: 'Looking for a Mentor',
   })
   @IsOptional()
-  @IsString() // Could be enum
+  @IsString()
   mentorRequest?: string;
-
   @ApiPropertyOptional({
     description: 'Preferred mentor interaction (e.g., one-time, regular)',
-    example: 'Regular Meetings',
   })
   @IsOptional()
-  @IsString() // Could be enum
+  @IsString()
   preferredMentor?: string;
-
-  @ApiPropertyOptional({
-    description: 'List of required skill names',
-    example: ['React', 'Node.js', 'PostgreSQL'],
-  })
+  @ApiPropertyOptional({ description: 'List of required skill names' })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   @IsNotEmpty({ each: true })
   requiredSkills?: string[];
-
-  @ApiPropertyOptional({
-    description: 'List of project tags/keywords',
-    example: ['Community', 'Gardening', 'Mobile App'],
-  })
+  @ApiPropertyOptional({ description: 'List of project tags/keywords' })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   @IsNotEmpty({ each: true })
   tags?: string[];
-
-  @ApiPropertyOptional({
-    description: 'Description of required roles',
-    example: 'Looking for a UI/UX designer and a backend developer.',
-  })
+  @ApiPropertyOptional({ description: 'Description of required roles' })
   @IsOptional()
   @IsString()
   requiredRoles?: string;
-
   @ApiPropertyOptional({ description: 'URL for the project image' })
   @IsOptional()
-  @IsString() // Add IsUrl() if validation is strict
+  @IsString()
   imageUrl?: string;
-
-  @ApiPropertyOptional({
-    description: 'Project start date (ISO 8601 format)',
-    example: '2024-09-01T00:00:00.000Z',
-  })
+  @ApiPropertyOptional({ description: 'Project start date (ISO 8601 format)' })
   @IsOptional()
   @IsDateString()
-  startDate?: string; // Receive as string, transform/validate as Date in service if needed
-
-  @ApiPropertyOptional({
-    description: 'Project end date (ISO 8601 format)',
-    example: '2025-03-31T23:59:59.000Z',
-  })
+  startDate?: string;
+  @ApiPropertyOptional({ description: 'Project end date (ISO 8601 format)' })
   @IsOptional()
   @IsDateString()
   endDate?: string;
 }
 
-// DTO for creating a new project
-export class CreateProjectDto extends BaseProjectDto {}
+export class CreateProjectDto extends BaseProjectDto {
+  // --- ADDED: Optional array of milestones ---
+  @ApiPropertyOptional({
+    description: 'Initial milestones for the project',
+    type: [CreateMilestoneInputDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateMilestoneInputDto)
+  milestones?: CreateMilestoneInputDto[];
+  // --- END ADDED ---
+}
 
-// DTO for updating an existing project
 export class UpdateProjectDto extends PartialType(BaseProjectDto) {}
 
-// DTO for representing a project in responses
-// Includes owner and member details
 export class ProjectDto extends BaseProjectDto {
-  @ApiProperty({ description: 'Project ID (UUID)' })
-  @IsUUID()
-  id: string;
-
-  // Use OmitType to exclude sensitive fields like cognitoSub from owner DTO
+  @ApiProperty({ description: 'Project ID (UUID)' }) @IsUUID() id: string;
   @ApiProperty({
     description: 'Project Owner Details',
     type: () => OmitType(UserDto, ['cognitoSub', 'profile'] as const),
@@ -142,7 +135,6 @@ export class ProjectDto extends BaseProjectDto {
   @ValidateNested()
   @Type(() => OmitType(UserDto, ['cognitoSub', 'profile'] as const))
   owner: Omit<UserDto, 'cognitoSub' | 'profile'>;
-
   @ApiProperty({
     description: 'List of project members and their roles',
     type: [ProjectMemberDto],
@@ -150,8 +142,7 @@ export class ProjectDto extends BaseProjectDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ProjectMemberDto)
-  members: ProjectMemberDto[]; // Combined from memberships
-
+  members: ProjectMemberDto[];
   @ApiPropertyOptional({
     type: () => [MilestoneDto],
     description: 'Project milestones',
@@ -160,17 +151,10 @@ export class ProjectDto extends BaseProjectDto {
   @ValidateNested({ each: true })
   @Type(() => MilestoneDto)
   milestones?: MilestoneDto[];
-
-  @ApiProperty({ description: 'Creation Timestamp' })
-  createdAt: Date;
-
-  @ApiProperty({ description: 'Last Update Timestamp' })
-  updatedAt: Date;
-
-  // Add applications, bookmarks later if needed in this specific DTO
+  @ApiProperty({ description: 'Creation Timestamp' }) createdAt: Date;
+  @ApiProperty({ description: 'Last Update Timestamp' }) updatedAt: Date;
 }
 
-// DTO for query parameters when finding projects
 export class FindProjectsQueryDto {
   @ApiPropertyOptional({
     description: 'Number of items to skip for pagination',
@@ -178,9 +162,8 @@ export class FindProjectsQueryDto {
     default: 0,
   })
   @IsOptional()
-  @Type(() => Number) // Transform query param string to number
+  @Type(() => Number)
   skip?: number;
-
   @ApiPropertyOptional({
     description: 'Number of items to take for pagination',
     type: Number,
@@ -189,14 +172,12 @@ export class FindProjectsQueryDto {
   @IsOptional()
   @Type(() => Number)
   take?: number;
-
   @ApiPropertyOptional({
     description: 'Search term for project title or description',
   })
   @IsOptional()
   @IsString()
   search?: string;
-
   @ApiPropertyOptional({
     description: 'Filter by owner user ID',
     type: 'string',
@@ -205,7 +186,6 @@ export class FindProjectsQueryDto {
   @IsOptional()
   @IsUUID()
   ownerId?: string;
-
   @ApiPropertyOptional({
     description: 'Filter by member user ID',
     type: 'string',
@@ -214,7 +194,6 @@ export class FindProjectsQueryDto {
   @IsOptional()
   @IsUUID()
   memberId?: string;
-
   @ApiPropertyOptional({
     description: 'Filter by required skill name',
     example: 'Figma',
@@ -222,7 +201,6 @@ export class FindProjectsQueryDto {
   @IsOptional()
   @IsString()
   skill?: string;
-
   @ApiPropertyOptional({ description: 'Filter by tag name', example: 'Remote' })
   @IsOptional()
   @IsString()
