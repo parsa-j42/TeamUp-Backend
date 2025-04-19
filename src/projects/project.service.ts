@@ -37,7 +37,9 @@ export class ProjectService {
     private readonly projectRepository: Repository<Project>,
     @InjectRepository(ProjectMembership)
     private readonly membershipRepository: Repository<ProjectMembership>,
-    private readonly userService: UserService, // Inject UserService
+    @InjectRepository(Milestone)
+    private readonly milestoneRepository: Repository<Milestone>,
+    private readonly userService: UserService,
   ) {}
 
   // Default relations to load for a full ProjectDto response
@@ -57,11 +59,14 @@ export class ProjectService {
     createDto: CreateProjectDto,
     owner: User,
   ): Promise<Project> {
+    const { milestones: milestoneInputs, ...projectData } = createDto;
+
     const project = this.projectRepository.create({
       ...createDto,
       ownerId: owner.id,
       owner: owner, // Assign owner relation
-      memberships: [], // Initialize memberships array
+      memberships: [], // Initialize memberships
+      milestones: [], // Initialize milestones
     });
 
     // Create the initial membership for the owner
@@ -73,6 +78,21 @@ export class ProjectService {
     // Add the membership to the project's memberships array
     // This relies on cascade:true on the Project entity's memberships relation
     project.memberships.push(ownerMembership);
+
+    // Create Milestone entities if provided
+    if (milestoneInputs && milestoneInputs.length > 0) {
+      project.milestones = milestoneInputs.map(input => {
+        const date = new Date(input.date);
+        if (isNaN(date.getTime())) {
+          throw new BadRequestException(`Invalid date format for milestone: ${input.title}`);
+        }
+        return this.milestoneRepository.create({ // Use milestone repo to create
+          title: input.title,
+          date: date,
+          // project will be linked by cascade
+        });
+      });
+    }
 
     try {
       // Save the project, which should cascade save the membership
@@ -107,6 +127,7 @@ export class ProjectService {
       .leftJoinAndSelect('project.owner', 'owner')
       .leftJoinAndSelect('project.memberships', 'memberships')
       .leftJoinAndSelect('memberships.user', 'user')
+      .addSelect(['project.startDate', 'project.endDate', 'project.createdAt'])
       // Do not load milestones/tasks for list view by default to keep it lighter
       .skip(skip)
       .take(take)
