@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common'; // Add forwardRef import
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ApplicationService } from './application.service';
 import { ApplicationController } from './application.controller';
@@ -11,7 +11,7 @@ import { ProjectMembership } from '@projects/project-membership.entity'; // Impo
   imports: [
     TypeOrmModule.forFeature([Application, ProjectMembership]), // Include Membership repo
     AuthModule, // Provides JwtAuthGuard globally
-    ProjectModule, // Provide ProjectService
+    forwardRef(() => ProjectModule),
   ],
   controllers: [ApplicationController],
   providers: [ApplicationService],
