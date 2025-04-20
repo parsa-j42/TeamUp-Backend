@@ -1,13 +1,13 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { InterestService } from './interest.service';
-// import { InterestController } from './interest.controller'; // Optional: Add if admin endpoints needed
 import { Interest } from './interest.entity';
+import { InterestsController } from '@interests/interest.controller';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Interest])],
-  // controllers: [InterestController], // Uncomment if controller is added
+  controllers: [InterestsController],
   providers: [InterestService],
-  exports: [InterestService], // Export service for ProfileModule
+  exports: [InterestService],
 })
 export class InterestModule {}
