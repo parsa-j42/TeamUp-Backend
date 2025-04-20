@@ -35,11 +35,17 @@ import {
 import { JwtAuthGuard } from '@auth/jwt-auth.guard';
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { User } from '@users/user.entity';
+import { ApplicationService } from '@applications/application.service';
+import { InviteUserDto } from '@applications/dto/invite-user.dto';
+import { ApplicationDto } from '@applications/dto/application.dto';
 
 @ApiTags('projects')
 @Controller('projects')
 export class ProjectController {
-  constructor(private readonly projectService: ProjectService) {}
+  constructor(
+    private readonly projectService: ProjectService,
+    private readonly applicationService: ApplicationService, // Inject ApplicationService
+  ) {}
 
   @Post()
   @UseGuards(JwtAuthGuard)
@@ -60,7 +66,6 @@ export class ProjectController {
       createProjectDto,
       user,
     );
-    // Service returns fully populated project, mapping done there
     return this.projectService.mapProjectToDto(project);
   }
 
@@ -68,20 +73,18 @@ export class ProjectController {
   @ApiOperation({
     summary: 'Find all projects (publicly accessible, filterable)',
   })
-  @ApiQuery({ type: FindProjectsQueryDto }) // Use DTO for query params
-  @ApiResponse({ status: 200, description: 'List of projects and total count' }) // Adjust response description
+  @ApiQuery({ type: FindProjectsQueryDto })
+  @ApiResponse({ status: 200, description: 'List of projects and total count' })
   async findAll(
     @Query() query: FindProjectsQueryDto,
   ): Promise<{ projects: ProjectDto[]; total: number }> {
     const { projects, total } = await this.projectService.findAll(query);
-    // Service loads relations needed for list view, mapping done in service
     return {
       projects: projects.map((p) => this.projectService.mapProjectToDto(p)),
       total,
     };
   }
 
-  // Optional: Endpoint to get projects specifically for the current user (owned or member)
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -95,18 +98,13 @@ export class ProjectController {
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async findMyProjects(@CurrentUser() user: User): Promise<ProjectDto[]> {
-    // First get IDs of projects the user is associated with
     const { projects: userProjects } = await this.projectService.findAll({
       memberId: user.id,
       take: 1000,
     });
-
-    // Then fetch complete details for each project including all memberships
     const fullProjects = await Promise.all(
       userProjects.map((project) => this.projectService.findOne(project.id)),
     );
-
-    // Map projects to DTOs with all membership information
     return fullProjects.map((project) =>
       this.projectService.mapProjectToDto(project),
     );
@@ -124,9 +122,8 @@ export class ProjectController {
   })
   @ApiResponse({ status: 404, description: 'Project not found' })
   async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<ProjectDto> {
-    // Service findOne loads default relations including milestones/tasks
     const project = await this.projectService.findOne(id);
-    return this.projectService.mapProjectToDto(project); // Use service mapper
+    return this.projectService.mapProjectToDto(project);
   }
 
   @Patch(':id')
@@ -153,7 +150,6 @@ export class ProjectController {
       updateProjectDto,
       user.id,
     );
-    // Service returns fully populated project, mapping done there
     return this.projectService.mapProjectToDto(updatedProject);
   }
 
@@ -179,7 +175,7 @@ export class ProjectController {
   @Post(':id/members')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Add a member to a project (Owner only)' })
+  @ApiOperation({ summary: 'Add a member directly to a project (Owner only)' }) // Clarified purpose
   @ApiParam({ name: 'id', description: 'Project ID (UUID)', type: 'string' })
   @ApiResponse({
     status: 201,
@@ -203,9 +199,91 @@ export class ProjectController {
       addMemberDto,
       user.id,
     );
-    // Use service mapper
     return this.projectService.mapMembershipToDto(membership);
   }
+
+  // --- NEW Invite Endpoint ---
+  @Post(':id/invite')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Invite a user to join a project (Owner only)' })
+  @ApiParam({ name: 'id', description: 'Project ID (UUID)', type: 'string' })
+  @ApiResponse({
+    status: 201,
+    description: 'Invitation sent successfully (Application created)',
+    type: ApplicationDto,
+  }) // Return ApplicationDto
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request (User already member/invited)',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden (Not owner)' })
+  @ApiResponse({
+    status: 404,
+    description: 'Project or User to invite not found',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Conflict (Invitation/Application already exists)',
+  })
+  async inviteUser(
+    @Param('id', ParseUUIDPipe) projectId: string,
+    @Body() inviteDto: InviteUserDto,
+    @CurrentUser() user: User,
+  ): Promise<ApplicationDto> {
+    // Return ApplicationDto
+    const application = await this.applicationService.inviteUser(
+      projectId,
+      inviteDto,
+      user.id,
+    );
+    // Need to map Application to ApplicationDto (similar to ApplicationController)
+    // For simplicity, we might just return the core info or re-fetch and map fully.
+    // Let's return a simplified version for now.
+    return {
+      id: application.id,
+      applicantId: application.applicantId,
+      projectId: application.projectId,
+      status: application.status,
+      roleAppliedFor: application.roleAppliedFor,
+      createdAt: application.createdAt,
+      updatedAt: application.updatedAt,
+      // Include simplified applicant and project if needed, requires loading relations in service
+      applicant: {
+        id: application.applicant.id,
+        firstName: application.applicant.firstName,
+        lastName: application.applicant.lastName,
+        preferredUsername: application.applicant.preferredUsername,
+      },
+      project: {
+        id: application.project.id,
+        title: application.project.title,
+        description: application.project.description, // Add other fields as needed by ApplicationProjectDto
+        owner: {
+          // Map owner
+          id: application.project.owner.id,
+          firstName: application.project.owner.firstName,
+          lastName: application.project.owner.lastName,
+          preferredUsername: application.project.owner.preferredUsername,
+        },
+        createdAt: application.project.createdAt,
+        updatedAt: application.project.updatedAt,
+        // Add other required fields from ApplicationProjectDto
+        numOfMembers: application.project.numOfMembers,
+        projectType: application.project.projectType,
+        mentorRequest: application.project.mentorRequest,
+        preferredMentor: application.project.preferredMentor,
+        requiredSkills: application.project.requiredSkills,
+        tags: application.project.tags,
+        requiredRoles: application.project.requiredRoles,
+        imageUrl: application.project.imageUrl,
+        startDate: application.project.startDate?.toISOString(),
+        endDate: application.project.endDate?.toISOString(),
+      },
+    };
+  }
+  // --- END Invite Endpoint ---
 
   @Patch(':id/members/:memberUserId')
   @UseGuards(JwtAuthGuard)
@@ -241,7 +319,6 @@ export class ProjectController {
       updateRoleDto,
       user.id,
     );
-    // Use service mapper
     return this.projectService.mapMembershipToDto(membership);
   }
 
