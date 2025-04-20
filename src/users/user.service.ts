@@ -20,11 +20,10 @@ interface PostgresError extends Error {
 @Injectable()
 export class UserService {
   constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
-    // Use forwardRef if ProfileService also depends on UserService, creating a circular dependency
-    @Inject(forwardRef(() => ProfileService))
-    private readonly profileService: ProfileService,
+      @InjectRepository(User)
+      private readonly userRepository: Repository<User>,
+      @Inject(forwardRef(() => ProfileService))
+      private readonly profileService: ProfileService,
   ) {}
 
   /**
@@ -43,15 +42,17 @@ export class UserService {
   }
 
   /**
-   * Finds all users and returns them in a simplified format
-   * with just ID and name (preferred name + last name)
+   * Finds all users and returns them in the SimpleUserDto format.
    */
   async findAllSimplified(): Promise<SimpleUserDto[]> {
     try {
       const users = await this.userRepository.find();
+      // Map to the updated SimpleUserDto structure
       return users.map((user) => ({
         id: user.id,
-        name: `${user.preferredUsername} ${user.lastName}`,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        preferredUsername: user.preferredUsername,
       }));
     } catch (error) {
       console.error('Error finding all users:', error);
@@ -63,18 +64,18 @@ export class UserService {
    * Finds a users by ID and maps it to UserDto, optionally including a mapped profile.
    */
   async findOneMapped(
-    userId: string,
-    includeProfile: boolean = false,
+      userId: string,
+      includeProfile: boolean = false,
   ): Promise<UserDto> {
     const relationsToLoad = includeProfile
-      ? [
+        ? [
           'profile',
           'profile.skills',
           'profile.interests',
           'profile.workExperiences',
           'profile.portfolioProjects',
         ]
-      : [];
+        : [];
     const user = await this.findOne(userId, relationsToLoad);
 
     const userDto: UserDto = {
@@ -89,12 +90,10 @@ export class UserService {
     };
 
     if (includeProfile && user.profile) {
-      // Use ProfileService's mapping logic
       userDto.profile = this.profileService.mapProfileToDto(user.profile);
     } else if (includeProfile && !user.profile) {
-      // Handle case where profile might be missing unexpectedly
       console.warn(`Profile requested but not found for user ${userId}`);
-      userDto.profile = undefined; // Or an empty object, depending on desired contract
+      userDto.profile = undefined;
     }
 
     return userDto;
@@ -105,8 +104,8 @@ export class UserService {
    * Optionally loads relations.
    */
   async findByCognitoSub(
-    cognitoSub: string,
-    relations: string[] = [],
+      cognitoSub: string,
+      relations: string[] = [],
   ): Promise<User | null> {
     return this.userRepository.findOne({ where: { cognitoSub }, relations });
   }
@@ -116,15 +115,14 @@ export class UserService {
    * Optionally loads relations.
    */
   async findByEmail(
-    email: string,
-    relations: string[] = [],
+      email: string,
+      relations: string[] = [],
   ): Promise<User | null> {
     return this.userRepository.findOne({ where: { email }, relations });
   }
 
   /**
    * Creates a new users or updates an existing one based on Cognito Sub.
-   * Typically called after Cognito authentication/confirmation.
    * Initializes an empty profile if creating a new users.
    */
   async createOrUpdateFromCognito(dto: CreateOrUpdateUserDto): Promise<User> {
@@ -132,58 +130,43 @@ export class UserService {
       let user = await this.findByCognitoSub(dto.cognitoSub);
 
       if (user) {
-        // Update existing users
         user.email = dto.email;
         user.firstName = dto.firstName;
         user.lastName = dto.lastName;
         user.preferredUsername = dto.preferredUsername;
       } else {
-        // Create new users
         user = this.userRepository.create({
           ...dto,
-          profile: new UserProfile(), // Create an empty profile linked to the users
+          profile: new UserProfile(),
         });
       }
 
       return await this.userRepository.save(user);
     } catch (error) {
-      // TypeORM QueryFailedError
       if (error instanceof QueryFailedError) {
-        // Check for unique constraint violation (code 23505 for PostgreSQL)
         if ((error as unknown as PostgresError).code === '23505') {
           if (error.message.includes('users_email_key')) {
             throw new ConflictException(`Email "${dto.email}" already exists.`);
           }
           if (error.message.includes('users_cognitoSub_key')) {
-            // This case should ideally be handled by the findByCognitoSub check,
-            // but adding it for robustness in case of race conditions.
-            throw new ConflictException(
-              `Cognito Sub "${dto.cognitoSub}" already exists.`,
-            );
+            throw new ConflictException( `Cognito Sub "${dto.cognitoSub}" already exists.` );
           }
-          throw new ConflictException(
-            'A unique constraint violation occurred.',
-          );
+          throw new ConflictException( 'A unique constraint violation occurred.' );
         }
       }
-      // Log the detailed error for debugging
       console.error('Error in createOrUpdateFromCognito:', error);
-      throw new InternalServerErrorException(
-        'Failed to create or update users.',
-      );
+      throw new InternalServerErrorException( 'Failed to create or update users.' );
     }
   }
 
   /**
    * Updates basic users details (like name).
-   * Should be used carefully, ensuring cognitoSub/email aren't changed arbitrarily.
    */
   async updateUserCoreInfo(
-    userId: string,
-    data: Partial<Pick<User, 'firstName' | 'lastName' | 'preferredUsername'>>,
+      userId: string,
+      data: Partial<Pick<User, 'firstName' | 'lastName' | 'preferredUsername'>>,
   ): Promise<User> {
-    const user = await this.findOne(userId); // Ensures users exists
-    // Only update allowed fields
+    const user = await this.findOne(userId);
     if (data.firstName) user.firstName = data.firstName;
     if (data.lastName) user.lastName = data.lastName;
     if (data.preferredUsername) user.preferredUsername = data.preferredUsername;
@@ -192,13 +175,7 @@ export class UserService {
       return await this.userRepository.save(user);
     } catch (error) {
       console.error(`Error updating core info for user ${userId}:`, error);
-      throw new InternalServerErrorException(
-        'Failed to update users core information.',
-      );
+      throw new InternalServerErrorException( 'Failed to update users core information.' );
     }
   }
-
-  // We might need a delete method later, but it needs careful consideration
-  // regarding Cognito users deletion synchronization.
-  // async deleteUser(id: string): Promise<void> { ... }
 }

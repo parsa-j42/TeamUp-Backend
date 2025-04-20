@@ -1,21 +1,19 @@
-import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsString,
   IsUUID,
   IsOptional,
   IsEnum,
   IsNotEmpty,
+  IsDateString,
+  IsArray,
 } from 'class-validator';
 import { ApplicationStatus } from '@common/enums/application-status.enum';
-import { UserDto } from '@users/dto/user.dto';
-import { ProjectDto } from '@projects/dto/project.dto';
 import { Type } from 'class-transformer';
+import { SimpleUserDto } from '@users/dto/user.dto';
 
 // DTO for creating an application (user applies to a project)
 export class CreateApplicationDto {
-  // projectId is taken from the route parameter
-  // applicantId is taken from the CurrentUser
-
   @ApiPropertyOptional({
     description: 'Optional: Role the user is applying for',
     example: 'Frontend Developer',
@@ -28,7 +26,7 @@ export class CreateApplicationDto {
   @ApiPropertyOptional({ description: 'Optional: Cover letter or message' })
   @IsOptional()
   @IsString()
-  message?: string; // Add if needed later
+  message?: string;
 }
 
 // DTO for updating the status (by project owner)
@@ -37,10 +35,90 @@ export class UpdateApplicationStatusDto {
     description: 'New status for the application',
     enum: [ApplicationStatus.ACCEPTED, ApplicationStatus.DECLINED],
   })
-  @IsEnum([ApplicationStatus.ACCEPTED, ApplicationStatus.DECLINED]) // Only allow accept/decline via this DTO
+  @IsEnum([ApplicationStatus.ACCEPTED, ApplicationStatus.DECLINED])
   @IsNotEmpty()
   status: ApplicationStatus.ACCEPTED | ApplicationStatus.DECLINED;
 }
+
+// --- Define the specific type for the nested project ---
+// Explicitly define fields needed, including owner as SimpleUserDto
+class ApplicationProjectDto {
+  @ApiProperty({ description: 'Project ID (UUID)' })
+  @IsUUID()
+  id: string;
+
+  @ApiProperty({ description: 'Title of the project' })
+  @IsString()
+  title: string;
+
+  @ApiProperty({ description: 'Detailed description of the project' })
+  @IsString()
+  description: string;
+
+  @ApiPropertyOptional({ description: 'Estimated number of members' })
+  @IsOptional()
+  @IsString()
+  numOfMembers?: string;
+
+  @ApiPropertyOptional({ description: 'Type of project' })
+  @IsOptional()
+  @IsString()
+  projectType?: string;
+
+  @ApiPropertyOptional({ description: 'Mentor request status' })
+  @IsOptional()
+  @IsString()
+  mentorRequest?: string;
+
+  @ApiPropertyOptional({ description: 'Preferred mentor interaction' })
+  @IsOptional()
+  @IsString()
+  preferredMentor?: string;
+
+  @ApiPropertyOptional({ description: 'List of required skill names' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  requiredSkills?: string[];
+
+  @ApiPropertyOptional({ description: 'List of project tags/keywords' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
+
+  @ApiPropertyOptional({ description: 'Description of required roles' })
+  @IsOptional()
+  @IsString()
+  requiredRoles?: string;
+
+  @ApiPropertyOptional({ description: 'URL for the project image' })
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  @ApiPropertyOptional({ description: 'Project start date (ISO 8601 format)' })
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @ApiPropertyOptional({ description: 'Project end date (ISO 8601 format)' })
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
+
+  @ApiProperty({ description: 'Creation Timestamp' })
+  createdAt: Date;
+
+  @ApiProperty({ description: 'Last Update Timestamp' })
+  updatedAt: Date;
+
+  // Define owner explicitly with SimpleUserDto type
+  @ApiProperty({ type: () => SimpleUserDto })
+  @Type(() => SimpleUserDto)
+  owner: SimpleUserDto;
+}
+// --- End nested project type definition ---
 
 // DTO for representing an application in responses
 export class ApplicationDto {
@@ -48,25 +126,25 @@ export class ApplicationDto {
   @IsUUID()
   id: string;
 
+  // Use SimpleUserDto for applicant
   @ApiProperty({
     description: 'Applicant User Details',
-    type: () => OmitType(UserDto, ['cognitoSub', 'profile'] as const),
+    type: () => SimpleUserDto,
   })
-  @Type(() => OmitType(UserDto, ['cognitoSub', 'profile'] as const))
-  applicant: Omit<UserDto, 'cognitoSub' | 'profile'>;
+  @Type(() => SimpleUserDto)
+  applicant: SimpleUserDto;
 
   @ApiProperty({ description: 'Applicant User ID (UUID)' })
   @IsUUID()
   applicantId: string;
 
-  // Include simplified project details
+  // Use the explicitly defined ApplicationProjectDto
   @ApiProperty({
-    description: 'Project Details',
-    type: () =>
-      OmitType(ProjectDto, ['owner', 'members', 'milestones'] as const),
+    description: 'Project Details (including owner)',
+    type: () => ApplicationProjectDto,
   })
-  @Type(() => OmitType(ProjectDto, ['owner', 'members', 'milestones'] as const))
-  project: Omit<ProjectDto, 'owner' | 'members' | 'milestones'>;
+  @Type(() => ApplicationProjectDto)
+  project: ApplicationProjectDto;
 
   @ApiProperty({ description: 'Project ID (UUID)' })
   @IsUUID()
@@ -109,7 +187,7 @@ export class FindApplicationsQueryDto {
     example: 'me',
   })
   @IsOptional()
-  @IsString() // Allow 'me' or UUID
+  @IsString()
   applicantId?: string;
 
   @ApiPropertyOptional({
@@ -122,13 +200,13 @@ export class FindApplicationsQueryDto {
   status?: ApplicationStatus;
 
   @ApiPropertyOptional({
-    description: 'Filter type: "sent" or "received" (relative to current user)',
+    description: 'Filter type: "sent" or "received"',
     enum: ['sent', 'received'],
     example: 'received',
   })
   @IsOptional()
   @IsEnum(['sent', 'received'])
-  filter?: 'sent' | 'received'; // Used with applicantId='me' or inferred current user
+  filter?: 'sent' | 'received';
 
   @ApiPropertyOptional({
     description: 'Number of items to skip',

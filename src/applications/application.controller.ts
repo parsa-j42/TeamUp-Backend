@@ -28,13 +28,12 @@ import { JwtAuthGuard } from '@auth/jwt-auth.guard';
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { User } from '@users/user.entity';
 import { Application } from './application.entity';
-import { UserDto } from '@users/dto/user.dto';
-import { ProjectDto } from '@projects/dto/project.dto';
+import { SimpleUserDto } from '@users/dto/user.dto';
 
 @ApiTags('applications')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('applications') // Base route for applications
+@Controller('applications')
 export class ApplicationController {
   constructor(private readonly applicationService: ApplicationService) {}
 
@@ -60,7 +59,7 @@ export class ApplicationController {
   @ApiResponse({ status: 409, description: 'Conflict (Already applied)' })
   async applyToProject(
     @Param('projectId', ParseUUIDPipe) projectId: string,
-    @Body() createDto: CreateApplicationDto, // Body might be empty or contain role/message
+    @Body() createDto: CreateApplicationDto,
     @CurrentUser() user: User,
   ): Promise<ApplicationDto> {
     const application = await this.applicationService.create(
@@ -123,7 +122,6 @@ export class ApplicationController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: User,
   ): Promise<ApplicationDto> {
-    // Service checks permission
     const application = await this.applicationService.findOne(id, user.id);
     return this.mapApplicationToDto(application);
   }
@@ -158,13 +156,11 @@ export class ApplicationController {
     @Body() updateStatusDto: UpdateApplicationStatusDto,
     @CurrentUser() user: User,
   ): Promise<ApplicationDto> {
-    // Service checks permission and handles adding member on accept
     const application = await this.applicationService.updateStatus(
       id,
       updateStatusDto,
       user.id,
     );
-    // Re-fetch to ensure relations are loaded for DTO mapping after potential membership add
     const updatedApp = await this.applicationService.findOne(
       application.id,
       user.id,
@@ -174,24 +170,30 @@ export class ApplicationController {
 
   // --- DTO Mapping Helper ---
   private mapApplicationToDto(app: Application): ApplicationDto {
-    const applicantDto: Omit<UserDto, 'cognitoSub' | 'profile'> | null =
-      app.applicant
+    // Map applicant to SimpleUserDto
+    const applicantDto: SimpleUserDto | null = app.applicant
+      ? {
+          id: app.applicant.id,
+          firstName: app.applicant.firstName,
+          lastName: app.applicant.lastName,
+          preferredUsername: app.applicant.preferredUsername,
+        }
+      : null;
+
+    // Map project owner to SimpleUserDto
+    const ownerDto: SimpleUserDto | null =
+      app.project && app.project.owner
         ? {
-            id: app.applicant.id,
-            email: app.applicant.email,
-            firstName: app.applicant.firstName,
-            lastName: app.applicant.lastName,
-            preferredUsername: app.applicant.preferredUsername,
-            createdAt: app.applicant.createdAt,
-            updatedAt: app.applicant.updatedAt,
+            id: app.project.owner.id,
+            firstName: app.project.owner.firstName,
+            lastName: app.project.owner.lastName,
+            preferredUsername: app.project.owner.preferredUsername,
           }
         : null;
 
-    // Map project using simplified fields
-    const projectDto: Omit<
-      ProjectDto,
-      'owner' | 'members' | 'milestones'
-    > | null = app.project
+    // Map project using simplified fields, including the owner
+    // Ensure the structure matches the explicit ApplicationProjectDto definition
+    const projectDto = app.project
       ? {
           id: app.project.id,
           title: app.project.title,
@@ -208,9 +210,11 @@ export class ApplicationController {
           endDate: app.project.endDate?.toISOString(),
           createdAt: app.project.createdAt,
           updatedAt: app.project.updatedAt,
+          owner: ownerDto!, // Assert owner is non-null as project requires an owner
         }
       : null;
 
+    // Construct the final ApplicationDto
     return {
       id: app.id,
       applicant: applicantDto!, // Assert non-null if relation is always loaded

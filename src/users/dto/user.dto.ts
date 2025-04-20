@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEmail, IsString, IsUUID, IsNotEmpty } from 'class-validator';
-import { UserProfileDto } from '@profiles/dto/profile.dto'; // Adjust path
+import { UserProfileDto } from '@profiles/dto/profile.dto';
 
 export class UserDto {
   @ApiProperty({ description: 'Internal User ID (UUID)' })
@@ -67,13 +67,22 @@ export class CreateOrUpdateUserDto {
   preferredUsername: string;
 }
 
-// Simple DTO for listing all users
+// Simple DTO for listing all users or embedding user info
 export class SimpleUserDto {
   @ApiProperty({ description: 'User ID' })
   @IsUUID()
   id: string;
 
-  @ApiProperty({ description: 'User Name (Preferred Name + Last Name)' })
+  // Include individual name fields needed for display formatting
+  @ApiProperty({ description: 'First Name' })
   @IsString()
-  name: string;
+  firstName: string;
+
+  @ApiProperty({ description: 'Last Name' })
+  @IsString()
+  lastName: string;
+
+  @ApiProperty({ description: 'Preferred Name' })
+  @IsString()
+  preferredUsername: string;
 }
