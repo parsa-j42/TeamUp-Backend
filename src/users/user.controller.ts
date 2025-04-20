@@ -7,12 +7,15 @@ import {
   NotFoundException,
   InternalServerErrorException,
   ConflictException,
+  Param,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
 } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { UserDto, CreateOrUpdateUserDto, SimpleUserDto } from './dto/user.dto';
@@ -25,20 +28,20 @@ import { User } from './user.entity';
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  @UseGuards(JwtAuthGuard)
+  // Keep existing GET /users (for search/invite)
+  @UseGuards(JwtAuthGuard) // Should this be protected? Yes, probably.
   @ApiBearerAuth()
   @Get()
-  @ApiOperation({
-    summary: 'Get all users with simplified information',
-  })
+  @ApiOperation({ summary: 'Get all users (simplified, requires auth)' }) // Updated summary
   @ApiResponse({
     status: 200,
-    description: 'List of all users with id and name',
+    description: 'List of users',
     type: [SimpleUserDto],
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async getAllUsers(): Promise<SimpleUserDto[]> {
+    // Consider adding search query param handling here if needed for the invite feature
     try {
       return await this.userService.findAllSimplified();
     } catch (error) {
@@ -47,9 +50,7 @@ export class UserController {
     }
   }
 
-  // --- Endpoint potentially called by Cognito Post Confirmation Trigger ---
-  // This endpoint should ideally be protected (e.g., IAM auth, secret key)
-  // For simplicity here, we leave it open but acknowledge it needs securing.
+  // Keep existing POST /users/sync
   @Post('sync')
   @ApiOperation({
     summary:
@@ -64,9 +65,7 @@ export class UserController {
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async syncUser(@Body() dto: CreateOrUpdateUserDto): Promise<UserDto> {
     try {
-      // createOrUpdateFromCognito returns the User entity
       const user = await this.userService.createOrUpdateFromCognito(dto);
-      // Map using the basic users info only for the sync response
       return {
         id: user.id,
         cognitoSub: user.cognitoSub,
@@ -76,20 +75,19 @@ export class UserController {
         preferredUsername: user.preferredUsername,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
-        // profile is explicitly not included here
       };
     } catch (error) {
       if (error instanceof ConflictException) {
-        throw error; // Re-throw conflict exception
+        throw error;
       }
       console.error('Error in syncUser endpoint:', error);
       throw new InternalServerErrorException('Failed to synchronize users.');
     }
   }
 
-  // --- Endpoint to get the currently logged-in users's data ---
-  @UseGuards(JwtAuthGuard) // Apply the guard
-  @ApiBearerAuth() // Indicate JWT is needed in Swagger
+  // Keep existing GET /users/me
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @Get('me')
   @ApiOperation({
     summary: "Get current users's details including full profile",
@@ -102,12 +100,11 @@ export class UserController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'User or Profile not found' })
   async getCurrentUser(@CurrentUser() user: User): Promise<UserDto> {
-    // Use the service method that handles mapping internally
     try {
-      return await this.userService.findOneMapped(user.id, true); // Request profile inclusion
+      return await this.userService.findOneMapped(user.id, true);
     } catch (error) {
       if (error instanceof NotFoundException) {
-        throw error; // Re-throw NotFound
+        throw error;
       }
       console.error(
         `Error fetching mapped user data for user ${user.id}:`,
@@ -117,7 +114,29 @@ export class UserController {
     }
   }
 
-  // Other endpoints like GET /users/:id might be needed for admin purposes
-  // or viewing other profiles, but based strictly on the provided frontend code,
-  // only 'me' seems directly required for now.
+  // --- NEW Public Endpoint to get user by ID ---
+  @Get(':id')
+  @ApiOperation({ summary: "Get a specific user's public profile by ID" })
+  @ApiParam({ name: 'id', description: 'User ID (UUID)', type: 'string' })
+  @ApiResponse({
+    status: 200,
+    description: 'User data with profile',
+    type: UserDto,
+  })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  async getUserById(@Param('id', ParseUUIDPipe) id: string): Promise<UserDto> {
+    try {
+      // Fetch user data including the profile, similar to 'me' endpoint
+      // The service method handles mapping and includes the profile
+      return await this.userService.findOneMapped(id, true);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error; // Re-throw NotFoundException
+      }
+      console.error(`Error fetching mapped user data for user ${id}:`, error);
+      throw new InternalServerErrorException('Failed to retrieve user data.');
+    }
+  }
+  // --- END NEW Endpoint ---
 }
