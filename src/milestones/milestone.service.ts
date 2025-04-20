@@ -3,20 +3,21 @@ import {
   NotFoundException,
   InternalServerErrorException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, EntityManager } from 'typeorm';
 import { Milestone } from './milestone.entity';
 import { CreateMilestoneDto, UpdateMilestoneDto } from './dto/milestone.dto';
-import { ProjectService } from '@projects/project.service'; // To check project membership/ownership
+import { ProjectService } from '@projects/project.service';
 
 @Injectable()
 export class MilestoneService {
   constructor(
     @InjectRepository(Milestone)
     private readonly milestoneRepository: Repository<Milestone>,
-    // Inject ProjectService or MembershipRepository to check permissions
     private readonly projectService: ProjectService,
+    private readonly entityManager: EntityManager, // Inject EntityManager
   ) {}
 
   // Helper to check if user is member/owner of the project associated with the milestone
@@ -24,8 +25,6 @@ export class MilestoneService {
     projectId: string,
     userId: string,
   ): Promise<void> {
-    // Fetch project with memberships to check if user is part of it
-    // Only load necessary relations for the check
     const project = await this.projectService.findOne(projectId, [
       'owner',
       'memberships',
@@ -33,8 +32,6 @@ export class MilestoneService {
     const isOwner = project.ownerId === userId;
     const isMember = project.memberships.some((m) => m.userId === userId);
 
-    // Define who can manage milestones (e.g., owner or any member)
-    // Let's assume any member can manage milestones for now
     if (!isOwner && !isMember) {
       throw new ForbiddenException(
         'You do not have permission to manage milestones for this project.',
@@ -46,11 +43,11 @@ export class MilestoneService {
     projectId: string,
     userId: string,
   ): Promise<Milestone[]> {
-    await this.checkProjectPermission(projectId, userId); // Check permission first
+    await this.checkProjectPermission(projectId, userId);
     return this.milestoneRepository.find({
       where: { projectId },
-      order: { date: 'ASC' }, // Order milestones chronologically
-      relations: ['tasks', 'tasks.assignee'], // Load tasks and their assignees
+      order: { date: 'ASC' },
+      relations: ['tasks', 'tasks.assignee'],
     });
   }
 
@@ -59,7 +56,6 @@ export class MilestoneService {
     userId: string,
     relations: string[] = [],
   ): Promise<Milestone> {
-    // Ensure 'project' relation is loaded for permission check if not already included
     const requiredRelations = new Set([...relations, 'project']);
     const milestone = await this.milestoneRepository.findOne({
       where: { id: milestoneId },
@@ -71,7 +67,6 @@ export class MilestoneService {
         `Milestone with ID "${milestoneId}" not found.`,
       );
     }
-    // Check permission using the projectId from the found milestone
     await this.checkProjectPermission(milestone.projectId, userId);
     return milestone;
   }
@@ -81,14 +76,13 @@ export class MilestoneService {
     createDto: CreateMilestoneDto,
     userId: string,
   ): Promise<Milestone> {
-    await this.checkProjectPermission(projectId, userId); // Check permission
+    await this.checkProjectPermission(projectId, userId);
 
-    // Convert date string to Date object
     const date = new Date(createDto.date);
     if (isNaN(date.getTime())) {
-      throw new InternalServerErrorException(
+      throw new BadRequestException(
         'Invalid date format provided for milestone.',
-      );
+      ); // Changed exception type
     }
 
     const milestone = this.milestoneRepository.create({
@@ -113,24 +107,16 @@ export class MilestoneService {
     updateDto: UpdateMilestoneDto,
     userId: string,
   ): Promise<Milestone> {
-    // findOne checks existence and permission
     const milestone = await this.findOne(milestoneId, userId);
 
-    // Convert date string if provided
     if (updateDto.date) {
       const newDate = new Date(updateDto.date);
       if (isNaN(newDate.getTime())) {
-        throw new InternalServerErrorException(
+        throw new BadRequestException(
           'Invalid date format provided for milestone update.',
-        );
+        ); // Changed exception type
       }
-
-      // Fix: Use a properly typed approach instead of type casting to any
-      const updatedMilestone = {
-        ...updateDto,
-        date: newDate,
-      };
-
+      const updatedMilestone = { ...updateDto, date: newDate };
       Object.assign(milestone, updatedMilestone);
     } else {
       Object.assign(milestone, updateDto);
@@ -145,10 +131,7 @@ export class MilestoneService {
   }
 
   async remove(milestoneId: string, userId: string): Promise<void> {
-    // findOne checks existence and permission
     const milestone = await this.findOne(milestoneId, userId);
-
-    // Deletion will cascade to tasks due to onDelete: 'CASCADE' in Task entity
     const result = await this.milestoneRepository.delete(milestone.id);
     if (result.affected === 0) {
       throw new NotFoundException(
@@ -156,4 +139,84 @@ export class MilestoneService {
       );
     }
   }
+
+  // --- NEW METHOD: Activate Milestone ---
+  async activateMilestone(
+    milestoneId: string,
+    projectId: string,
+    userId: string,
+  ): Promise<Milestone> {
+    // 1. Check permission (user must be member/owner of the project)
+    await this.checkProjectPermission(projectId, userId);
+
+    // 2. Find the target milestone to ensure it exists and belongs to the project
+    const targetMilestone = await this.milestoneRepository.findOne({
+      where: { id: milestoneId, projectId: projectId },
+    });
+    if (!targetMilestone) {
+      throw new NotFoundException(
+        `Milestone with ID "${milestoneId}" not found in project "${projectId}".`,
+      );
+    }
+
+    // 3. Use a transaction to ensure atomicity (optional but recommended)
+    return await this.entityManager
+      .transaction(async (transactionalEntityManager) => {
+        // Deactivate all other milestones in the same project
+        await transactionalEntityManager.update(
+          Milestone,
+          { projectId: projectId, id: Not(milestoneId) }, // Use Not() operator if available or query builder
+          { active: false },
+        );
+
+        // Activate the target milestone
+        targetMilestone.active = true;
+        const activatedMilestone = await transactionalEntityManager.save(
+          Milestone,
+          targetMilestone,
+        );
+
+        // Optionally reload relations if needed for the response DTO
+        // For now, just return the updated milestone entity
+        return activatedMilestone;
+      })
+      .catch((error) => {
+        console.error(
+          `Error activating milestone ${milestoneId} for project ${projectId}:`,
+          error,
+        );
+        throw new InternalServerErrorException('Failed to activate milestone.');
+      });
+
+    /* --- Non-transactional approach (simpler, less safe for concurrency) ---
+    // Deactivate all other milestones
+    await this.milestoneRepository.update(
+        { projectId: projectId, id: Not(milestoneId) }, // Or use query builder if Not() isn't available
+        { active: false }
+    );
+    // Activate the target milestone
+    targetMilestone.active = true;
+    try {
+        return await this.milestoneRepository.save(targetMilestone);
+    } catch (error) {
+        console.error(`Error activating milestone ${milestoneId} for project ${projectId}:`, error);
+        throw new InternalServerErrorException('Failed to activate milestone.');
+    }
+    */
+  }
+  // --- END NEW METHOD ---
+}
+
+// Helper function for Not operator (if not directly available in TypeORM version)
+import { FindOperator, FindOperatorType } from 'typeorm';
+class NotOperator<T> extends FindOperator<T> {
+  constructor(value: T | FindOperator<T>) {
+    super('not', value as any); // Type assertion might be needed
+  }
+  get type(): FindOperatorType {
+    return 'not';
+  } // Explicitly define type getter
+}
+export function Not<T>(value: T | FindOperator<T>): FindOperator<T> {
+  return new NotOperator(value);
 }

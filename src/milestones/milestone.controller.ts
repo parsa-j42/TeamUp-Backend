@@ -28,20 +28,16 @@ import { JwtAuthGuard } from '@auth/jwt-auth.guard';
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { User } from '@users/user.entity';
 import { Milestone } from './milestone.entity';
-import { TaskDto } from '@tasks/dto/task.dto'; // For mapping tasks
-import { Task } from '@tasks/task.entity'; // For mapping tasks
-// import { OmitType } from '@nestjs/swagger'; // For mapping tasks
-import { UserDto } from '@users/dto/user.dto'; // For mapping tasks
+import { TaskDto } from '@tasks/dto/task.dto';
+import { Task } from '@tasks/task.entity';
+import { UserDto } from '@users/dto/user.dto';
 
-@ApiTags('projects') // Group under projects
+@ApiTags('projects')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('projects/:projectId/milestones') // Nested route
+@Controller('projects/:projectId/milestones')
 export class MilestoneController {
-  constructor(
-    private readonly milestoneService: MilestoneService,
-    // TaskService not strictly needed here if MilestoneService loads tasks
-  ) {}
+  constructor(private readonly milestoneService: MilestoneService) {}
 
   @Get()
   @ApiOperation({ summary: 'Get all milestones for a specific project' })
@@ -62,7 +58,6 @@ export class MilestoneController {
     @Param('projectId', ParseUUIDPipe) projectId: string,
     @CurrentUser() user: User,
   ): Promise<MilestoneDto[]> {
-    // Service checks permission and loads tasks
     const milestones = await this.milestoneService.findAllByProjectId(
       projectId,
       user.id,
@@ -124,7 +119,6 @@ export class MilestoneController {
     @Param('milestoneId', ParseUUIDPipe) milestoneId: string,
     @CurrentUser() user: User,
   ): Promise<MilestoneDto> {
-    // Load tasks relation for the DTO response
     const milestone = await this.milestoneService.findOne(
       milestoneId,
       user.id,
@@ -165,7 +159,6 @@ export class MilestoneController {
       updateDto,
       user.id,
     );
-    // Re-fetch with relations for consistent response DTO
     const updatedMilestone = await this.milestoneService.findOne(
       milestone.id,
       user.id,
@@ -173,6 +166,49 @@ export class MilestoneController {
     );
     return this.mapMilestoneToDto(updatedMilestone);
   }
+
+  // --- NEW Activate Endpoint ---
+  @Patch(':milestoneId/activate')
+  @ApiOperation({
+    summary: 'Set a specific milestone as active for the project',
+  })
+  @ApiParam({
+    name: 'projectId',
+    description: 'ID of the project',
+    type: 'string',
+  })
+  @ApiParam({
+    name: 'milestoneId',
+    description: 'ID of the milestone to activate',
+    type: 'string',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Milestone activated',
+    type: MilestoneDto,
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Project or Milestone not found' })
+  async activate(
+    @Param('projectId', ParseUUIDPipe) projectId: string,
+    @Param('milestoneId', ParseUUIDPipe) milestoneId: string,
+    @CurrentUser() user: User,
+  ): Promise<MilestoneDto> {
+    const activatedMilestone = await this.milestoneService.activateMilestone(
+      milestoneId,
+      projectId,
+      user.id,
+    );
+    // Re-fetch with tasks for the response DTO
+    const fullMilestone = await this.milestoneService.findOne(
+      activatedMilestone.id,
+      user.id,
+      ['tasks', 'tasks.assignee'],
+    );
+    return this.mapMilestoneToDto(fullMilestone);
+  }
+  // --- END Activate Endpoint ---
 
   @Delete(':milestoneId')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -205,10 +241,9 @@ export class MilestoneController {
       id: milestone.id,
       projectId: milestone.projectId,
       title: milestone.title,
-      date: milestone.date.toISOString(), // Convert Date to ISO string
+      date: milestone.date.toISOString(),
       active: milestone.active,
       createdAt: milestone.createdAt,
-      // Map tasks if loaded
       tasks: milestone.tasks?.map((t) => this.mapTaskToDto(t)) || [],
     };
   }
@@ -219,7 +254,7 @@ export class MilestoneController {
       task.assignee
         ? {
             id: task.assignee.id,
-            email: task.assignee.email,
+            email: task.assignee.email, // Keep email if needed, otherwise remove
             firstName: task.assignee.firstName,
             lastName: task.assignee.lastName,
             preferredUsername: task.assignee.preferredUsername,
