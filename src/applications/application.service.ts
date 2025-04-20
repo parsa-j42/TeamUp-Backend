@@ -14,11 +14,13 @@ import {
   UpdateApplicationStatusDto,
   FindApplicationsQueryDto,
 } from './dto/application.dto';
+import { InviteUserDto } from './dto/invite-user.dto';
 import { User } from '@users/user.entity';
-import { ProjectService } from '@projects/project.service'; // To check project owner/members
-import { ProjectMembership } from '@projects/project-membership.entity'; // To add member on accept
-import { ProjectRole } from '@common/enums/project-role.enum'; // For adding member
+import { ProjectService } from '@projects/project.service';
+import { ProjectMembership } from '@projects/project-membership.entity';
+import { ProjectRole } from '@common/enums/project-role.enum';
 import { ApplicationStatus } from '@common/enums/application-status.enum';
+import { UserService } from '@users/user.service';
 
 @Injectable()
 export class ApplicationService {
@@ -26,8 +28,9 @@ export class ApplicationService {
     @InjectRepository(Application)
     private readonly applicationRepository: Repository<Application>,
     private readonly projectService: ProjectService,
-    @InjectRepository(ProjectMembership) // Inject membership repo to add members
+    @InjectRepository(ProjectMembership)
     private readonly membershipRepository: Repository<ProjectMembership>,
+    private readonly userService: UserService, // Inject UserService
   ) {}
 
   async create(
@@ -35,13 +38,11 @@ export class ApplicationService {
     applicant: User,
     createDto: CreateApplicationDto,
   ): Promise<Application> {
-    // Check if project exists (throws NotFoundException if not)
     const project = await this.projectService.findOne(projectId, [
       'owner',
       'memberships',
-    ]); // Load owner/memberships
+    ]);
 
-    // Check if user is already a member or owner
     if (
       project.ownerId === applicant.id ||
       project.memberships.some((m) => m.userId === applicant.id)
@@ -51,32 +52,32 @@ export class ApplicationService {
       );
     }
 
-    // Check if application already exists (handled by unique index, but good practice)
     const existingApplication = await this.applicationRepository.findOne({
       where: { projectId, applicantId: applicant.id },
     });
     if (existingApplication) {
-      throw new ConflictException('You have already applied to this project.');
+      throw new ConflictException(
+        'You have already applied to or been invited to this project.',
+      );
     }
 
     const application = this.applicationRepository.create({
       ...createDto,
       projectId: projectId,
       applicantId: applicant.id,
-      status: ApplicationStatus.PENDING, // Explicitly set status
+      status: ApplicationStatus.PENDING, // User is applying
     });
 
     try {
       const savedApp = await this.applicationRepository.save(application);
-      // Reload relations for response DTO mapping if needed
-      return this.findOne(savedApp.id, applicant.id); // Pass applicantId for permission check
+      return this.findOne(savedApp.id, applicant.id);
     } catch (error) {
       if (
         error instanceof QueryFailedError &&
         error.message.includes('applications_applicantId_projectId_idx')
       ) {
         throw new ConflictException(
-          'You have already applied to this project (concurrent request).',
+          'You have already applied to or been invited to this project (concurrent request).',
         );
       }
       console.error(
@@ -86,6 +87,80 @@ export class ApplicationService {
       throw new InternalServerErrorException('Failed to submit application.');
     }
   }
+
+  // --- NEW METHOD: Invite User ---
+  async inviteUser(
+    projectId: string,
+    inviteDto: InviteUserDto,
+    ownerId: string,
+  ): Promise<Application> {
+    // 1. Check if project exists and requester is owner
+    const project = await this.projectService.findOne(projectId, [
+      'owner',
+      'memberships',
+    ]);
+    if (project.ownerId !== ownerId) {
+      throw new ForbiddenException('Only the project owner can invite users.');
+    }
+
+    // 2. Check if invited user exists
+    const userToInvite = await this.userService.findOne(inviteDto.userId); // Throws NotFound if not found
+
+    // 3. Check if invited user is already owner or member
+    if (
+      project.ownerId === userToInvite.id ||
+      project.memberships.some((m) => m.userId === userToInvite.id)
+    ) {
+      throw new BadRequestException(
+        `User ${userToInvite.preferredUsername} is already a member or the owner.`,
+      );
+    }
+
+    // 4. Check if an application/invitation already exists
+    const existingApplication = await this.applicationRepository.findOne({
+      where: { projectId, applicantId: userToInvite.id },
+    });
+    if (existingApplication) {
+      throw new ConflictException(
+        `An application or invitation for ${userToInvite.preferredUsername} already exists for this project.`,
+      );
+    }
+
+    // 5. Create the invitation (Application entity)
+    const invitation = this.applicationRepository.create({
+      projectId: projectId,
+      applicantId: userToInvite.id, // The invited user is the applicant in this context
+      status: ApplicationStatus.INVITED, // Set status to INVITED
+      roleAppliedFor: inviteDto.role || ProjectRole.MEMBER, // Default to Member if role not specified
+    });
+
+    try {
+      const savedInvitation = await this.applicationRepository.save(invitation);
+      // Reload relations for response DTO mapping if needed
+      // Note: findOne permission check needs adjustment if owner should see invites they sent
+      // For now, just return the saved entity, controller will map
+      const reloadedInvite = await this.applicationRepository.findOneOrFail({
+        where: { id: savedInvitation.id },
+        relations: ['applicant', 'project', 'project.owner'],
+      });
+      return reloadedInvite;
+    } catch (error) {
+      if (
+        error instanceof QueryFailedError &&
+        error.message.includes('applications_applicantId_projectId_idx')
+      ) {
+        throw new ConflictException(
+          `An application or invitation for ${userToInvite.preferredUsername} already exists for this project (concurrent request).`,
+        );
+      }
+      console.error(
+        `Error inviting user ${inviteDto.userId} to project ${projectId}:`,
+        error,
+      );
+      throw new InternalServerErrorException('Failed to send invitation.');
+    }
+  }
+  // --- END NEW METHOD ---
 
   async findAll(
     queryDto: FindApplicationsQueryDto,
@@ -104,66 +179,82 @@ export class ApplicationService {
       .createQueryBuilder('app')
       .leftJoinAndSelect('app.applicant', 'applicant')
       .leftJoinAndSelect('app.project', 'project')
-      .leftJoinAndSelect('project.owner', 'projectOwner') // Needed for filtering/permissions
+      .leftJoinAndSelect('project.owner', 'projectOwner')
       .skip(skip)
       .take(take)
       .orderBy('app.createdAt', 'DESC');
 
-    // --- Refined Filtering Logic ---
     let filterApplied = false;
 
     if (filter) {
       if (filter === 'sent') {
+        // User's sent applications (PENDING status only, not INVITED)
         query.andWhere('app.applicantId = :userId', { userId: currentUser.id });
+        query.andWhere('app.status = :statusPending', {
+          statusPending: ApplicationStatus.PENDING,
+        });
         filterApplied = true;
       } else if (filter === 'received') {
-        // User receives applications for projects they OWN
-        query.andWhere('project.ownerId = :userId', { userId: currentUser.id });
+        // Applications/Invitations received by the user OR applications for projects they own
+        query.andWhere(
+          '( (app.applicantId = :userId AND app.status IN (:...receivedStatuses)) OR (project.ownerId = :userId AND app.status = :pendingStatus) )',
+          {
+            userId: currentUser.id,
+            receivedStatuses: [
+              ApplicationStatus.PENDING,
+              ApplicationStatus.INVITED,
+            ], // User receives their own pending apps and invites
+            pendingStatus: ApplicationStatus.PENDING, // Owner receives pending apps to their project
+          },
+        );
         filterApplied = true;
       }
     } else if (applicantId) {
-      if (applicantId === 'me') {
-        query.andWhere('app.applicantId = :userId', { userId: currentUser.id });
-        filterApplied = true;
-      } else {
-        // Allow viewing specific user's applications only if it's the current user
-        if (applicantId !== currentUser.id) {
-          throw new ForbiddenException(
-            'You can only filter applications by your own applicant ID.',
-          );
-        }
-        query.andWhere('app.applicantId = :applicantId', { applicantId });
-        filterApplied = true;
+      // Allow viewing specific user's applications only if it's the current user
+      if (applicantId !== 'me' && applicantId !== currentUser.id) {
+        throw new ForbiddenException(
+          'You can only filter applications by your own applicant ID.',
+        );
       }
+      // Filter by current user's applications (sent or received invites)
+      query.andWhere('app.applicantId = :userId', { userId: currentUser.id });
+      // Optionally filter further by status if provided
+      if (status) {
+        query.andWhere('app.status = :status', { status });
+      } else {
+        // If no specific status, show PENDING and INVITED for 'me' filter
+        query.andWhere('app.status IN (:...statuses)', {
+          statuses: [ApplicationStatus.PENDING, ApplicationStatus.INVITED],
+        });
+      }
+      filterApplied = true;
     } else if (projectId) {
-      // If filtering only by project, ensure user is owner of that project to see all apps.
+      // If filtering only by project, ensure user is owner of that project to see PENDING apps.
       query.andWhere('app.projectId = :projectId', { projectId });
-      query.andWhere('project.ownerId = :userId', { userId: currentUser.id }); // Restrict to owner
+      query.andWhere('project.ownerId = :userId', { userId: currentUser.id });
+      query.andWhere('app.status = :statusPending', {
+        statusPending: ApplicationStatus.PENDING,
+      }); // Only show pending apps TO the owner
       filterApplied = true;
     }
 
-    // If no primary filter is applied, throw error
     if (!filterApplied) {
       throw new BadRequestException(
         'Please specify a filter type ("sent", "received"), your applicant ID ("me"), or a project ID you own.',
       );
     }
-    // --- End Refined Filtering Logic ---
 
-    // Apply secondary filters
-    if (status) {
+    // Apply secondary status filter if provided AND primary filter wasn't status-specific already
+    if (status && !(applicantId && !filter)) {
       query.andWhere('app.status = :status', { status });
     }
-    // If projectId was provided *in addition* to other filters (like 'sent'), apply it
+    // Apply secondary project filter if provided
     if (projectId && (filter || applicantId)) {
-      // Ensure user has permission for this specific project filter combo if needed
-      // e.g., if filter=sent and projectId=X, ensure user is the applicant AND project is X
       query.andWhere('app.projectId = :projectId', { projectId });
     }
 
     try {
       const [applications, total] = await query.getManyAndCount();
-      // No further permission checks needed here as query itself restricts access
       return { applications, total };
     } catch (error) {
       console.error('Error finding applications:', error);
@@ -179,7 +270,7 @@ export class ApplicationService {
   ): Promise<Application> {
     const application = await this.applicationRepository.findOne({
       where: { id: applicationId },
-      relations: ['applicant', 'project', 'project.owner'], // Load relations needed for checks/response
+      relations: ['applicant', 'project', 'project.owner'],
     });
     if (!application) {
       throw new NotFoundException(
@@ -187,16 +278,23 @@ export class ApplicationService {
       );
     }
 
-    // --- Permission Check: Applicant or Project Owner can view ---
-    if (
-      application.applicantId !== currentUserId &&
-      application.project.ownerId !== currentUserId
-    ) {
+    // Permission Check: Applicant or Project Owner can view
+    // Note: Applicant can view PENDING and INVITED. Owner can view PENDING.
+    const isApplicant = application.applicantId === currentUserId;
+    const isOwner = application.project.ownerId === currentUserId;
+    const canView =
+      (isApplicant &&
+        (application.status === ApplicationStatus.PENDING ||
+          application.status === ApplicationStatus.INVITED ||
+          application.status === ApplicationStatus.ACCEPTED ||
+          application.status === ApplicationStatus.DECLINED)) ||
+      (isOwner && application.status === ApplicationStatus.PENDING); // Owner can only view PENDING apps to their project
+
+    if (!canView) {
       throw new ForbiddenException(
         'You do not have permission to view this application.',
       );
     }
-    // -----------------------------------------------------------
     return application;
   }
 
@@ -205,19 +303,31 @@ export class ApplicationService {
     updateDto: UpdateApplicationStatusDto,
     currentUserId: string,
   ): Promise<Application> {
-    // findOne checks view permission first
+    // findOne checks basic view permission first
     const application = await this.findOne(applicationId, currentUserId);
 
-    // --- Permission Check: Only Project Owner can accept/decline ---
-    if (application.project.ownerId !== currentUserId) {
+    // --- Permission Check: Who can update status? ---
+    const isApplicant = application.applicantId === currentUserId;
+    const isOwner = application.project.ownerId === currentUserId;
+
+    if (application.status === ApplicationStatus.PENDING && !isOwner) {
       throw new ForbiddenException(
-        'Only the project owner can accept or decline applications.',
+        'Only the project owner can accept or decline pending applications.',
       );
     }
-    // -----------------------------------------------------------
+    if (application.status === ApplicationStatus.INVITED && !isApplicant) {
+      throw new ForbiddenException(
+        'Only the invited user can accept or decline an invitation.',
+      );
+    }
+    // -----------------------------------------------
 
     // Check if application is already decided
-    if (application.status !== ApplicationStatus.PENDING) {
+    if (
+      ![ApplicationStatus.PENDING, ApplicationStatus.INVITED].includes(
+        application.status,
+      )
+    ) {
       throw new BadRequestException(
         `Application has already been ${application.status.toLowerCase()}.`,
       );
@@ -227,7 +337,6 @@ export class ApplicationService {
 
     // If accepted, add user to project members
     if (application.status === ApplicationStatus.ACCEPTED) {
-      // Check if already a member (shouldn't happen if create check works, but belt-and-suspenders)
       const existingMembership = await this.membershipRepository.findOne({
         where: {
           projectId: application.projectId,
@@ -236,16 +345,14 @@ export class ApplicationService {
       });
       if (!existingMembership) {
         const newMembership = this.membershipRepository.create({
-          projectId: application.projectId,
-          userId: application.applicantId,
-          role: ProjectRole.MEMBER, // Default role for accepted applicants
+          project: { id: application.projectId },
+          user: { id: application.applicantId },
+          role: application.roleAppliedFor as ProjectRole || ProjectRole.MEMBER, // Ensure role is of ProjectRole enum type
         });
         try {
           await this.membershipRepository.save(newMembership);
         } catch (memError: unknown) {
-          // Type the error as unknown and then check if it has code property
           const errorWithCode = memError as { code?: string };
-
           if (errorWithCode?.code === '23505') {
             console.warn(
               `Membership for user ${application.applicantId} on project ${application.projectId} already exists (concurrent add).`,
@@ -255,7 +362,6 @@ export class ApplicationService {
               `Error adding member ${application.applicantId} to project ${application.projectId} after accepting application:`,
               memError,
             );
-            // Decide how to handle this - maybe revert status? For now, just log.
             throw new InternalServerErrorException(
               'Failed to add user to project after accepting application.',
             );
@@ -280,7 +386,5 @@ export class ApplicationService {
       );
     }
   }
-
-  // Optional: Delete application (maybe only if pending and by applicant?)
-  // async delete(applicationId: string, currentUserId: string): Promise<void> { ... }
 }
+
