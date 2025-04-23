@@ -37,12 +37,6 @@ class CreateMilestoneInputDto {
   @IsDateString()
   @IsNotEmpty()
   date: string;
-
-  // 'active' status usually determined later, not at creation typically
-  // @ApiPropertyOptional({ description: 'Is this the initially active milestone?', default: false })
-  // @IsOptional()
-  // @IsBoolean()
-  // active?: boolean;
 }
 // --- End Milestone Input DTO ---
 
@@ -111,7 +105,6 @@ class BaseProjectDto {
 }
 
 export class CreateProjectDto extends BaseProjectDto {
-  // --- ADDED: Optional array of milestones ---
   @ApiPropertyOptional({
     description: 'Initial milestones for the project',
     type: [CreateMilestoneInputDto],
@@ -121,7 +114,6 @@ export class CreateProjectDto extends BaseProjectDto {
   @ValidateNested({ each: true })
   @Type(() => CreateMilestoneInputDto)
   milestones?: CreateMilestoneInputDto[];
-  // --- END ADDED ---
 }
 
 export class UpdateProjectDto extends PartialType(BaseProjectDto) {}
@@ -155,6 +147,8 @@ export class ProjectDto extends BaseProjectDto {
   @ApiProperty({ description: 'Last Update Timestamp' }) updatedAt: Date;
 }
 
+// --- FindProjectsQueryDto ---
+// This is the class that needed the update
 export class FindProjectsQueryDto {
   @ApiPropertyOptional({
     description: 'Number of items to skip for pagination',
@@ -164,6 +158,7 @@ export class FindProjectsQueryDto {
   @IsOptional()
   @Type(() => Number)
   skip?: number;
+
   @ApiPropertyOptional({
     description: 'Number of items to take for pagination',
     type: Number,
@@ -172,12 +167,14 @@ export class FindProjectsQueryDto {
   @IsOptional()
   @Type(() => Number)
   take?: number;
+
   @ApiPropertyOptional({
     description: 'Search term for project title or description',
   })
   @IsOptional()
   @IsString()
   search?: string;
+
   @ApiPropertyOptional({
     description: 'Filter by owner user ID',
     type: 'string',
@@ -186,6 +183,7 @@ export class FindProjectsQueryDto {
   @IsOptional()
   @IsUUID()
   ownerId?: string;
+
   @ApiPropertyOptional({
     description: 'Filter by member user ID',
     type: 'string',
@@ -194,6 +192,7 @@ export class FindProjectsQueryDto {
   @IsOptional()
   @IsUUID()
   memberId?: string;
+
   @ApiPropertyOptional({
     description: 'Filter by required skill name',
     example: 'Figma',
@@ -201,8 +200,17 @@ export class FindProjectsQueryDto {
   @IsOptional()
   @IsString()
   skill?: string;
+
   @ApiPropertyOptional({ description: 'Filter by tag name', example: 'Remote' })
   @IsOptional()
   @IsString()
   tag?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by mentor request status (e.g., looking, open, one-time)',
+    example: 'looking',
+  })
+  @IsOptional()
+  @IsString()
+  mentorRequest?: string;
 }

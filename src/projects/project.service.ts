@@ -62,11 +62,14 @@ export class ProjectService {
     const { milestones: milestoneInputs, ...projectData } = createDto;
 
     const project = this.projectRepository.create({
-      ...createDto,
+      ...projectData, // Use projectData which excludes milestones input
       ownerId: owner.id,
-      owner: owner, // Assign owner relation
-      memberships: [], // Initialize memberships
-      milestones: [], // Initialize milestones
+      owner: owner,
+      memberships: [],
+      milestones: [],
+      // Ensure arrays are initialized if not provided in DTO defaults
+      requiredSkills: projectData.requiredSkills || [],
+      tags: projectData.tags || [],
     });
 
     // Create the initial membership for the owner
@@ -119,6 +122,7 @@ export class ProjectService {
       memberId,
       skill,
       tag,
+      mentorRequest, // Destructure mentorRequest
     } = queryDto;
 
     const query = this.projectRepository
@@ -148,31 +152,23 @@ export class ProjectService {
       query.andWhere('memberships.userId = :memberId', { memberId });
     }
 
-    // Updated skill filter to use case-insensitive ILIKE
+    // Updated skill filter (case-insensitive array check)
     if (skill) {
-      query.andWhere(
-        '(project.requiredSkills ILIKE :startSkill OR project.requiredSkills ILIKE :containSkill OR project.requiredSkills ILIKE :endSkill OR project.requiredSkills ILIKE :exactSkill)',
-        {
-          startSkill: `${skill},%`,
-          containSkill: `%,${skill},%`,
-          endSkill: `%,${skill}`,
-          exactSkill: skill,
-        },
-      );
+      // Simple check if skill exists in the comma-separated array (case-insensitive)
+      // This works reasonably well for simple-array but might need optimization for large datasets
+      query.andWhere('LOWER(project.requiredSkills::text) LIKE LOWER(:skillPattern)', { skillPattern: `%${skill}%` });
     }
 
-    // Updated tag filter to use case-insensitive ILIKE
+    // Updated tag filter (case-insensitive array check)
     if (tag) {
-      query.andWhere(
-        '(project.tags ILIKE :startTag OR project.tags ILIKE :containTag OR project.tags ILIKE :endTag OR project.tags ILIKE :exactTag)',
-        {
-          startTag: `${tag},%`,
-          containTag: `%,${tag},%`,
-          endTag: `%,${tag}`,
-          exactTag: tag,
-        },
-      );
+      query.andWhere('LOWER(project.tags::text) LIKE LOWER(:tagPattern)', { tagPattern: `%${tag}%` });
     }
+
+    // --- ADDED: Filter by mentorRequest ---
+    if (mentorRequest) {
+      query.andWhere('project.mentorRequest = :mentorRequest', { mentorRequest });
+    }
+    // --- END ADDED ---
 
     try {
       const [projects, total] = await query.getManyAndCount();
@@ -497,14 +493,14 @@ export class ProjectService {
     const ownerDto: Omit<UserDto, 'cognitoSub' | 'profile'> | null =
       project.owner
         ? {
-            id: project.owner.id,
-            email: project.owner.email,
-            firstName: project.owner.firstName,
-            lastName: project.owner.lastName,
-            preferredUsername: project.owner.preferredUsername,
-            createdAt: project.owner.createdAt,
-            updatedAt: project.owner.updatedAt,
-          }
+          id: project.owner.id,
+          email: project.owner.email,
+          firstName: project.owner.firstName,
+          lastName: project.owner.lastName,
+          preferredUsername: project.owner.preferredUsername,
+          createdAt: project.owner.createdAt,
+          updatedAt: project.owner.updatedAt,
+        }
         : null;
 
     const membersDto: ProjectMemberDto[] =
@@ -538,14 +534,14 @@ export class ProjectService {
     const userDto: Omit<UserDto, 'cognitoSub' | 'profile'> | null =
       membership.user
         ? {
-            id: membership.user.id,
-            email: membership.user.email,
-            firstName: membership.user.firstName,
-            lastName: membership.user.lastName,
-            preferredUsername: membership.user.preferredUsername,
-            createdAt: membership.user.createdAt,
-            updatedAt: membership.user.updatedAt,
-          }
+          id: membership.user.id,
+          email: membership.user.email,
+          firstName: membership.user.firstName,
+          lastName: membership.user.lastName,
+          preferredUsername: membership.user.preferredUsername,
+          createdAt: membership.user.createdAt,
+          updatedAt: membership.user.updatedAt,
+        }
         : null;
 
     return {
@@ -574,14 +570,14 @@ export class ProjectService {
     const assigneeDto: Omit<UserDto, 'cognitoSub' | 'profile'> | null =
       task.assignee
         ? {
-            id: task.assignee.id,
-            email: task.assignee.email,
-            firstName: task.assignee.firstName,
-            lastName: task.assignee.lastName,
-            preferredUsername: task.assignee.preferredUsername,
-            createdAt: task.assignee.createdAt,
-            updatedAt: task.assignee.updatedAt,
-          }
+          id: task.assignee.id,
+          email: task.assignee.email,
+          firstName: task.assignee.firstName,
+          lastName: task.assignee.lastName,
+          preferredUsername: task.assignee.preferredUsername,
+          createdAt: task.assignee.createdAt,
+          updatedAt: task.assignee.updatedAt,
+        }
         : null;
     return {
       id: task.id,
@@ -596,4 +592,3 @@ export class ProjectService {
     };
   }
 }
-
