@@ -5,6 +5,7 @@ import { In, Repository } from 'typeorm'; // Import In operator
 import { faker } from '@faker-js/faker';
 import { INestApplicationContext } from '@nestjs/common';
 
+// Import ALL your entities here
 import { User } from '@users/user.entity';
 import { UserProfile } from '@profiles/profile.entity';
 import { Skill } from '@skills/skill.entity';
@@ -22,17 +23,18 @@ import { ProjectRole } from '@common/enums/project-role.enum';
 import { TaskStatus } from '@common/enums/task-status.enum';
 
 // --- Configuration ---
-// Emails of the users you MANUALLY signed up via the frontend
+// Emails of the users you MANUALLY signed up via the frontend AND CONFIRMED
 const DEMO_USER_EMAILS = [
-  "parsajfri42@gmail.com",
-  "parsajfri421@gmail.com",
+  "parsajfri42@gmail.com", // Replace with your actual confirmed demo emails
   "parsajfri42.spam@gmail.com",
+  "parsajfri421@gmail.com",
   "minekhorteam@gmail.com",
   "yyctehrantv@gmail.com",
   "besixot628@f5url.com",
   "getabib149@cxnlab.com",
   "yafob44799@cxnlab.com",
-  "niwimol307@f5url.com"
+  "niwimol307@f5url.com",
+  // Add more if you created more
 ];
 
 const NUM_PROJECTS_TO_CREATE = 40; // Create projects owned by the demo users
@@ -84,7 +86,7 @@ function getSkillsFromCategories(categories: string[], maxTotalSkills: number): 
 
   const shuffled = availableSkills.slice().sort(() => 0.5 - Math.random());
   // Ensure at least 1 skill is selected if possible, up to maxTotalSkills
-  const count = Math.max(1, Math.floor(Math.random() * (maxTotalSkills + 1)));
+  const count = Math.max(1, Math.floor(Math.random() * (Math.min(maxTotalSkills, availableSkills.length) + 1)));
   return shuffled.slice(0, count);
 }
 
@@ -98,6 +100,8 @@ function getRandomSubset<T>(arr: T[], maxSize: number): T[] {
 // Helper function to get a random element
 function getRandomElement<T>(arr: T[]): T {
   if (arr.length === 0) {
+    // Return a default or handle appropriately if necessary, e.g., for optional fields
+    // For now, throwing error as it indicates a logic issue in seeding setup
     throw new Error("Cannot get random element from an empty array.");
   }
   return arr[Math.floor(Math.random() * arr.length)];
@@ -126,8 +130,8 @@ async function bootstrap() {
     const portfolioProjectRepository = app.get<Repository<PortfolioProject>>(getRepositoryToken(PortfolioProject));
 
     // --- IMPORTANT: Decide whether to clear data ---
-    // Option 1: Clear everything EXCEPT users/profiles (if you want fresh projects etc.)
-    console.log('Clearing non-user/profile data (bookmarks, applications, tasks, milestones, memberships, projects, skills, interests)...');
+    // Clears related data but KEEPS Users and UserProfiles
+    console.log('Clearing non-user/profile data (bookmarks, applications, tasks, milestones, memberships, projects, skills, interests, work_exp, portfolio)...');
     await bookmarkRepository.delete({});
     await applicationRepository.delete({});
     await taskRepository.delete({});
@@ -136,41 +140,31 @@ async function bootstrap() {
     await projectRepository.delete({});
     await workExperienceRepository.delete({}); // Clear related profile data too
     await portfolioProjectRepository.delete({}); // Clear related profile data too
-    // We are NOT deleting users or profiles here
-    // Clear skills and interests if you want to re-seed them
     await skillRepository.delete({});
     await interestRepository.delete({});
     console.log('Non-user data cleared.');
+    // --- End Clearing Data ---
 
-    // Option 2: Comment out the clearing section above if you want to ADD data without clearing.
-
-    // --- Seed Skills & Interests (if cleared or first time) ---
+    // --- Seed Skills & Interests ---
     console.log('Seeding Skills & Interests...');
-    let skillEntities = await skillRepository.find();
-    if (skillEntities.length === 0) {
-      for (const name of PREDEFINED_SKILLS) {
-        try {
-          const skill = skillRepository.create({ name, description: faker.lorem.sentence() });
-          skillEntities.push(await skillRepository.save(skill));
-        } catch (e) { console.warn(`Skipping duplicate skill: ${name}`) }
-      }
-      console.log(`Seeded ${skillEntities.length} skills.`);
-    } else {
-      console.log(`Found ${skillEntities.length} existing skills.`);
+    let skillEntities: Skill[] = [];
+    for (const name of PREDEFINED_SKILLS) {
+      try {
+        const skill = skillRepository.create({ name, description: faker.lorem.sentence() });
+        skillEntities.push(await skillRepository.save(skill));
+      } catch (e: any) { if (e.code !== '23505') console.error(`Error saving skill ${name}:`, e); else console.warn(`Skipping duplicate skill: ${name}`) }
     }
+    console.log(`Seeded ${skillEntities.length} skills.`);
 
-    let interestEntities = await interestRepository.find();
-    if (interestEntities.length === 0) {
-      for (const name of PREDEFINED_INTERESTS) {
-        try {
-          const interest = interestRepository.create({ name, description: faker.lorem.sentence() });
-          interestEntities.push(await interestRepository.save(interest));
-        } catch (e) { console.warn(`Skipping duplicate interest: ${name}`) }
-      }
-      console.log(`Seeded ${interestEntities.length} interests.`);
-    } else {
-      console.log(`Found ${interestEntities.length} existing interests.`);
+    let interestEntities: Interest[] = [];
+    for (const name of PREDEFINED_INTERESTS) {
+      try {
+        const interest = interestRepository.create({ name, description: faker.lorem.sentence() });
+        interestEntities.push(await interestRepository.save(interest));
+      } catch (e: any) { if (e.code !== '23505') console.error(`Error saving interest ${name}:`, e); else console.warn(`Skipping duplicate interest: ${name}`) }
     }
+    console.log(`Seeded ${interestEntities.length} interests.`);
+    // --- End Seed Skills & Interests ---
 
     // --- Fetch Existing Demo Users ---
     console.log('Fetching existing demo users by email...');
@@ -180,24 +174,37 @@ async function bootstrap() {
     });
 
     if (demoUsers.length !== DEMO_USER_EMAILS.length) {
-      console.warn(`WARNING: Expected ${DEMO_USER_EMAILS.length} demo users, but found ${demoUsers.length}. Make sure all users were created AND confirmed via email.`);
+      const foundEmails = demoUsers.map(u => u.email);
+      const missingEmails = DEMO_USER_EMAILS.filter(e => !foundEmails.includes(e));
+      console.warn(`WARNING: Expected ${DEMO_USER_EMAILS.length} demo users, but found ${demoUsers.length}.`);
+      console.warn(`Missing or unconfirmed users: ${missingEmails.join(', ')}`);
       if (demoUsers.length === 0) {
         throw new Error("CRITICAL: No demo users found in the database. Please sign them up and confirm their emails first.");
       }
     } else {
       console.log(`Found ${demoUsers.length} demo users.`);
     }
+    // --- End Fetch Users ---
 
     // --- Populate Profiles for Demo Users ---
     console.log('Populating profiles for demo users...');
     for (const user of demoUsers) {
       if (!user.profile) {
-        console.warn(`User ${user.email} is missing a profile. Skipping profile population.`);
-        continue; // Skip if profile doesn't exist (shouldn't happen with sync)
+        console.warn(`User ${user.email} is missing a profile. Creating one.`);
+        // If somehow profile is missing, create it
+        user.profile = profileRepository.create({ userId: user.id });
+        await profileRepository.save(user.profile);
+        // Re-fetch user with profile to ensure consistency
+        const reloadedUser = await userRepository.findOne({ where: { id: user.id }, relations: ['profile'] });
+        if (!reloadedUser || !reloadedUser.profile) {
+          console.error(`Failed to create or reload profile for user ${user.email}. Skipping population.`);
+          continue;
+        }
+        user.profile = reloadedUser.profile; // Assign the newly created profile
       }
 
       // Update existing profile with fake data
-      user.profile.userType = user.profile.userType || getRandomElement(USER_TYPES); // Keep existing if set during signup
+      user.profile.userType = user.profile.userType || getRandomElement(USER_TYPES);
       user.profile.program = user.profile.program || getRandomElement(PROGRAMS);
       user.profile.signupExperience = user.profile.signupExperience || faker.lorem.paragraph(2);
       user.profile.status = faker.person.jobTitle();
@@ -211,175 +218,200 @@ async function bootstrap() {
       // Add Work Experiences
       const workExperiences = Array.from({ length: faker.number.int({ min: 1, max: 3 }) }).map(exp =>
         workExperienceRepository.create({
-          profile: user.profile, // Link to profile
+          profileId: user.profile.id, // Set ID explicitly
           dateRange: `${faker.date.past({ years: 5 }).getFullYear()} - ${faker.date.recent().getFullYear()}`,
           workName: faker.company.name() + ' - ' + faker.person.jobTitle(),
           description: faker.lorem.sentence(),
         })
       );
-      await workExperienceRepository.save(workExperiences); // Save new ones
+      await workExperienceRepository.save(workExperiences);
 
       // Add Portfolio Projects
       const portfolioProjects = Array.from({ length: faker.number.int({ min: 1, max: 4 }) }).map(pp =>
         portfolioProjectRepository.create({
-          profile: user.profile, // Link to profile
+          profileId: user.profile.id, // Set ID explicitly
           title: faker.commerce.productName() + ' Showcase',
           description: faker.lorem.paragraph(faker.number.int({ min: 1, max: 3 })),
-          tags: getRandomSubset(PREDEFINED_SKILLS, 3), // Use skills as tags for portfolio
-          imageUrl: faker.image.urlLoremFlickr({ category: 'technology,abstract,business' }), // More varied images
+          tags: getRandomSubset(PREDEFINED_SKILLS, 3),
+          imageUrl: faker.image.urlLoremFlickr({ category: 'technology,abstract,business' }),
         })
       );
-      await portfolioProjectRepository.save(portfolioProjects); // Save new ones
+      await portfolioProjectRepository.save(portfolioProjects);
 
-      // Save the updated profile (this should update relations too)
+      // Save the updated profile (this should update relations like skills/interests)
       await profileRepository.save(user.profile);
       console.log(`... populated profile for ${user.email}`);
     }
     console.log('Finished populating demo user profiles.');
+    // --- End Populate Profiles ---
 
-    // --- Seed Projects (Owned by Demo Users) ---
+    // --- Seed Projects ---
     console.log(`Seeding ${NUM_PROJECTS_TO_CREATE} Projects...`);
     const projectEntities: Project[] = [];
-    for (let i = 0; i < NUM_PROJECTS_TO_CREATE; i++) {
-      const owner = getRandomElement(demoUsers); // Assign owner from REAL demo users
-      const numMilestones = faker.number.int({ min: 1, max: MAX_MILESTONES_PER_PROJECT });
+    if (demoUsers.length === 0) {
+      console.error("Cannot seed projects without users.");
+    } else {
+      for (let i = 0; i < NUM_PROJECTS_TO_CREATE; i++) {
+        const owner = getRandomElement(demoUsers);
+        const numMilestones = faker.number.int({ min: 1, max: MAX_MILESTONES_PER_PROJECT });
 
-      // --- Interdisciplinary Skill & Tag Logic ---
-      let requiredSkills: string[] = [];
-      let tags: string[] = [];
-      const isInterdisciplinary = Math.random() < 0.7; // 70% chance of being interdisciplinary
-      const isPersonalIdea = Math.random() < 0.4; // 40% chance of being a personal idea
+        // --- Interdisciplinary Skill & Tag Logic ---
+        let requiredSkills: string[] = [];
+        let tags: string[] = [];
+        const isInterdisciplinary = Math.random() < 0.7;
+        const isPersonalIdea = Math.random() < 0.4;
 
-      if (isInterdisciplinary) {
-        const numCategories = faker.number.int({ min: 2, max: 3 });
-        const selectedCategories = getRandomSubset(Object.keys(SKILL_CATEGORIES), numCategories);
-        requiredSkills = getSkillsFromCategories(selectedCategories, faker.number.int({ min: 3, max: 7 }));
-        selectedCategories.forEach(cat => {
-          if (cat === 'TECH' && !tags.includes('Development')) tags.push('Development');
-          if (cat === 'DESIGN' && !tags.includes('Design')) tags.push('Design');
-          if (cat === 'BUSINESS' && !tags.includes('Business')) tags.push('Business');
-          if (cat === 'MEDIA_SCIENCE' && !tags.includes('Science') && !tags.includes('Content & Media')) {
+        if (isInterdisciplinary) {
+          const numCategories = faker.number.int({ min: 2, max: 3 });
+          const selectedCategories = getRandomSubset(Object.keys(SKILL_CATEGORIES), numCategories);
+          requiredSkills = getSkillsFromCategories(selectedCategories, faker.number.int({ min: 3, max: 7 }));
+          selectedCategories.forEach(cat => {
+            if (cat === 'TECH' && !tags.includes('Development')) tags.push('Development');
+            if (cat === 'DESIGN' && !tags.includes('Design')) tags.push('Design');
+            if (cat === 'BUSINESS' && !tags.includes('Business')) tags.push('Business');
+            if (cat === 'MEDIA_SCIENCE' && !tags.includes('Science') && !tags.includes('Content & Media')) {
+              tags.push(Math.random() < 0.5 ? 'Science' : 'Content & Media');
+            }
+          });
+        } else {
+          let primaryCategory = 'TECH';
+          if (owner.profile?.program?.includes('Design')) primaryCategory = 'DESIGN';
+          else if (owner.profile?.program?.includes('Business') || owner.profile?.program?.includes('Marketing')) primaryCategory = 'BUSINESS';
+          else if (owner.profile?.program?.includes('Media')) primaryCategory = 'MEDIA_SCIENCE';
+          requiredSkills = getSkillsFromCategories([primaryCategory], faker.number.int({ min: 3, max: 7 }));
+          if (primaryCategory === 'TECH' && !tags.includes('Development')) tags.push('Development');
+          if (primaryCategory === 'DESIGN' && !tags.includes('Design')) tags.push('Design');
+          if (primaryCategory === 'BUSINESS' && !tags.includes('Business')) tags.push('Business');
+          if (primaryCategory === 'MEDIA_SCIENCE' && !tags.includes('Science') && !tags.includes('Content & Media')) {
             tags.push(Math.random() < 0.5 ? 'Science' : 'Content & Media');
           }
-        });
-        // console.log(`Creating INTERDISCIPLINARY project ${i+1} (Categories: ${selectedCategories.join(', ')})`);
-      } else {
-        let primaryCategory = 'TECH';
-        if (owner.profile?.program?.includes('Design')) primaryCategory = 'DESIGN';
-        else if (owner.profile?.program?.includes('Business') || owner.profile?.program?.includes('Marketing')) primaryCategory = 'BUSINESS';
-        else if (owner.profile?.program?.includes('Media')) primaryCategory = 'MEDIA_SCIENCE';
-        requiredSkills = getSkillsFromCategories([primaryCategory], faker.number.int({ min: 3, max: 7 }));
-        if (primaryCategory === 'TECH' && !tags.includes('Development')) tags.push('Development');
-        if (primaryCategory === 'DESIGN' && !tags.includes('Design')) tags.push('Design');
-        if (primaryCategory === 'BUSINESS' && !tags.includes('Business')) tags.push('Business');
-        if (primaryCategory === 'MEDIA_SCIENCE' && !tags.includes('Science') && !tags.includes('Content & Media')) {
-          tags.push(Math.random() < 0.5 ? 'Science' : 'Content & Media');
         }
-        // console.log(`Creating project ${i+1} with primary category: ${primaryCategory}`);
-      }
+        tags = [...new Set([...tags, ...getRandomSubset(PREDEFINED_TAGS.filter(t => !tags.includes(t) && t !== 'Personal Idea' && t !== 'Startup Idea'), 2)])];
+        if (isPersonalIdea) {
+          tags.push(getRandomElement(['Personal Idea', 'Startup Idea']));
+        }
+        // --- END Interdisciplinary Logic ---
 
-      // Add some random extra tags
-      tags = [...new Set([...tags, ...getRandomSubset(PREDEFINED_TAGS.filter(t => !tags.includes(t) && t !== 'Personal Idea' && t !== 'Startup Idea'), 2)])];
+        // 1. Create Project entity data
+        const projectData = {
+          ownerId: owner.id, // Set owner ID
+          title: faker.company.catchPhrase() + (isPersonalIdea ? ' App' : ' Platform'),
+          description: faker.lorem.paragraphs(faker.number.int({ min: 2, max: 4 })),
+          numOfMembers: getRandomElement(NUM_MEMBERS_OPTIONS),
+          projectType: getRandomElement(PROJECT_TYPES),
+          mentorRequest: getRandomElement(MENTOR_REQUESTS.filter(r => r !== 'none')),
+          preferredMentor: faker.lorem.words(3),
+          requiredSkills: requiredSkills,
+          tags: tags,
+          requiredRoles: faker.lorem.sentence(faker.number.int({ min: 5, max: 15 })),
+          imageUrl: faker.image.urlPicsumPhotos({ width: 600, height: 400 }),
+          startDate: faker.date.past({ years: 1 }),
+          endDate: faker.datatype.boolean(0.7) ? faker.date.future({ years: 1 }) : undefined,
+        };
 
-      if (isPersonalIdea) {
-        tags.push(Math.random() < 0.5 ? 'Personal Idea' : 'Startup Idea');
-      }
-      // --- END Interdisciplinary Logic ---
+        try {
+          // 2. Save the Project FIRST to get its ID
+          const savedProject = await projectRepository.save(projectRepository.create(projectData));
+          // console.log(`... Saved project ${i + 1} (ID: ${savedProject.id})`);
 
-      const project = projectRepository.create({
-        owner: owner,
-        ownerId: owner.id,
-        title: faker.company.catchPhrase() + (isPersonalIdea ? ' App' : ' Platform'),
-        description: faker.lorem.paragraphs(faker.number.int({ min: 2, max: 4 })),
-        numOfMembers: getRandomElement(NUM_MEMBERS_OPTIONS),
-        projectType: getRandomElement(PROJECT_TYPES),
-        mentorRequest: getRandomElement(MENTOR_REQUESTS.filter(r => r !== 'none')),
-        preferredMentor: faker.lorem.words(3),
-        requiredSkills: requiredSkills,
-        tags: tags,
-        requiredRoles: faker.lorem.sentence(faker.number.int({ min: 5, max: 15 })),
-        imageUrl: faker.image.urlPicsumPhotos({ width: 600, height: 400 }),
-        startDate: faker.date.past({ years: 1 }),
-        endDate: faker.datatype.boolean(0.7) ? faker.date.future({ years: 1 }) : undefined,
-        milestones: [],
-        memberships: [],
-      });
-
-      // Create Milestones and Tasks
-      for (let j = 0; j < numMilestones; j++) {
-        const milestone = milestoneRepository.create({
-          title: `Milestone ${j + 1}: ${faker.lorem.words(faker.number.int({ min: 2, max: 5 }))}`,
-          date: faker.date.between({ from: project.startDate!, to: project.endDate || faker.date.future({ years: 1 }) }),
-          active: j === 0,
-          tasks: [],
-          project: project,
-        });
-
-        const numTasks = faker.number.int({ min: 1, max: MAX_TASKS_PER_MILESTONE });
-        for (let k = 0; k < numTasks; k++) {
-          const task = taskRepository.create({
-            name: `Task ${k + 1}: ${faker.hacker.verb()} ${faker.hacker.noun()}`,
-            description: faker.lorem.sentence(),
-            status: getRandomElement(Object.values(TaskStatus)),
-            milestone: milestone,
+          // 3. Add Owner Membership
+          const ownerMembership = membershipRepository.create({
+            projectId: savedProject.id, // Explicitly set ID
+            userId: owner.id, // Explicitly set ID
+            role: ProjectRole.OWNER,
           });
-          milestone.tasks.push(task);
-        }
-        project.milestones.push(milestone);
-      }
+          await membershipRepository.save(ownerMembership);
 
-      try {
-        const savedProject = await projectRepository.save(project);
-        // Add owner membership explicitly
-        const ownerMembership = membershipRepository.create({
-          project: savedProject,
-          user: owner,
-          role: ProjectRole.OWNER,
-        });
-        await membershipRepository.save(ownerMembership);
-        // Reload project with memberships to ensure it's available for task assignment logic later
-        const reloadedProject = await projectRepository.findOne({ where: { id: savedProject.id }, relations: ['memberships', 'milestones', 'milestones.tasks'] });
-        if(reloadedProject) {
-          projectEntities.push(reloadedProject);
-        } else {
-          console.warn(`Could not reload project ${savedProject.id} after saving.`);
-          projectEntities.push(savedProject); // Push original if reload fails
-        }
+          // 4. Create and Save Milestones and Tasks
+          const createdMilestones: Milestone[] = [];
+          for (let j = 0; j < numMilestones; j++) {
+            const milestoneData = milestoneRepository.create({
+              projectId: savedProject.id, // **Set the projectId explicitly**
+              title: `Milestone ${j + 1}: ${faker.lorem.words(faker.number.int({ min: 2, max: 5 }))}`,
+              date: faker.date.between({ from: savedProject.startDate!, to: savedProject.endDate || faker.date.future({ years: 1 }) }),
+              active: j === 0,
+            });
+            const savedMilestone = await milestoneRepository.save(milestoneData);
 
-        if ((i + 1) % 5 === 0) console.log(`... seeded ${i + 1} projects`);
-      } catch (error) {
-        console.error(`Failed to save project ${i+1}:`, error);
+            const numTasks = faker.number.int({ min: 1, max: MAX_TASKS_PER_MILESTONE });
+            const createdTasks: Task[] = [];
+            for (let k = 0; k < numTasks; k++) {
+              const taskData = taskRepository.create({
+                milestoneId: savedMilestone.id, // **Set the milestoneId explicitly**
+                name: `Task ${k + 1}: ${faker.hacker.verb()} ${faker.hacker.noun()}`,
+                description: faker.lorem.sentence(),
+                status: getRandomElement(Object.values(TaskStatus)),
+              });
+              const savedTask = await taskRepository.save(taskData);
+              createdTasks.push(savedTask);
+            }
+            savedMilestone.tasks = createdTasks; // Add saved tasks to milestone object
+            createdMilestones.push(savedMilestone); // Add saved milestone
+          }
+
+          // Reload the project with all relations needed for subsequent steps
+          const fullyLoadedProject = await projectRepository.findOne({
+            where: { id: savedProject.id },
+            relations: ['owner', 'memberships', 'milestones', 'milestones.tasks'], // Load necessary relations
+          });
+
+          if (fullyLoadedProject) {
+            projectEntities.push(fullyLoadedProject);
+          } else {
+            console.warn(`Could not fully reload project ${savedProject.id}`);
+            // Fallback: manually add milestones/memberships to the savedProject object if needed
+            savedProject.milestones = createdMilestones;
+            savedProject.memberships = [ownerMembership];
+            projectEntities.push(savedProject);
+          }
+
+
+          if ((i + 1) % 5 === 0) console.log(`... seeded ${i + 1} projects fully`);
+
+        } catch (error) {
+          console.error(`Failed during seeding process for project ${i+1}:`, error);
+        }
       }
     }
     console.log(`Seeded ${projectEntities.length} projects.`);
+    // --- End Seed Projects ---
 
-    // --- Seed Memberships (Demo Users joining other Demo Users' projects) ---
+
+    // --- Seed Memberships ---
     console.log('Seeding Memberships...');
     let membershipCount = 0;
     for (const project of projectEntities) {
-      // Potential members are demo users who aren't the owner
       const potentialMembers = demoUsers.filter(u => u.id !== project.ownerId);
       const membersToAdd = getRandomSubset(potentialMembers, MAX_MEMBERS_PER_PROJECT - 1);
 
       for (const memberUser of membersToAdd) {
         try {
+          // Check if membership already exists (paranoid check)
+          const exists = await membershipRepository.exist({ where: { projectId: project.id, userId: memberUser.id } });
+          if (exists) continue;
+
           const membership = membershipRepository.create({
-            project: project,
-            user: memberUser,
+            projectId: project.id,
+            userId: memberUser.id,
             role: ProjectRole.MEMBER,
           });
           await membershipRepository.save(membership);
           membershipCount++;
 
           // Assign some tasks within this project to this new member
-          const tasksToAssign = project.milestones
+          const tasksToAssign = (project.milestones || [])
             .flatMap(m => m.tasks || [])
-            .filter(t => !t.assigneeId && Math.random() < 0.2); // 20% chance
+            .filter(t => !t.assigneeId && Math.random() < 0.2);
 
           for(const task of tasksToAssign) {
-            task.assignee = memberUser;
-            task.assigneeId = memberUser.id;
-            await taskRepository.save(task); // Save task update
+            // Fetch the task again to ensure it's managed by TypeORM before updating
+            const taskToUpdate = await taskRepository.findOneBy({ id: task.id });
+            if (taskToUpdate) {
+              taskToUpdate.assigneeId = memberUser.id; // Set only the ID
+              await taskRepository.save(taskToUpdate);
+            } else {
+              console.warn(`Task ${task.id} not found for assignment.`);
+            }
           }
 
         } catch (error: any) {
@@ -392,24 +424,25 @@ async function bootstrap() {
       }
     }
     console.log(`Seeded ${membershipCount} additional memberships.`);
+    // --- End Seed Memberships ---
 
-    // --- Seed Applications (Demo Users applying to Demo Projects) ---
+
+    // --- Seed Applications ---
     console.log('Seeding Applications...');
     let applicationCount = 0;
     if (demoUsers.length > 0 && projectEntities.length > 0) {
       for (const applicant of demoUsers) {
         const projectsToApply = getRandomSubset(projectEntities, MAX_APPLICATIONS_PER_USER);
         for (const project of projectsToApply) {
-          // Check if user is already owner or member
           const isOwner = project.ownerId === applicant.id;
-          // Check membership efficiently (assuming memberships are loaded or check DB)
           const isMember = await membershipRepository.exist({ where: { projectId: project.id, userId: applicant.id } });
+          const hasApplied = await applicationRepository.exist({ where: { projectId: project.id, applicantId: applicant.id } });
 
-          if (!isOwner && !isMember) {
+          if (!isOwner && !isMember && !hasApplied) {
             const status = Math.random() < 0.3 ? ApplicationStatus.INVITED : ApplicationStatus.PENDING;
             const application = applicationRepository.create({
-              applicant: applicant,
-              project: project,
+              applicantId: applicant.id,
+              projectId: project.id,
               status: status,
               roleAppliedFor: status === ApplicationStatus.PENDING ? faker.person.jobTitle() : ProjectRole.MEMBER,
             });
@@ -428,17 +461,22 @@ async function bootstrap() {
       }
     }
     console.log(`Seeded ${applicationCount} applications.`);
+    // --- End Seed Applications ---
 
-    // --- Seed Bookmarks (Demo Users bookmarking Demo Projects) ---
+
+    // --- Seed Bookmarks ---
     console.log('Seeding Bookmarks...');
     let bookmarkCount = 0;
     if (demoUsers.length > 0 && projectEntities.length > 0) {
       for (const user of demoUsers) {
         const projectsToBookmark = getRandomSubset(projectEntities, MAX_BOOKMARKS_PER_USER);
         for (const project of projectsToBookmark) {
+          const hasBookmarked = await bookmarkRepository.exist({ where: { projectId: project.id, userId: user.id } });
+          if(hasBookmarked) continue;
+
           const bookmark = bookmarkRepository.create({
-            user: user,
-            project: project,
+            userId: user.id,
+            projectId: project.id,
           });
           try {
             await bookmarkRepository.save(bookmark);
@@ -454,6 +492,7 @@ async function bootstrap() {
       }
     }
     console.log(`Seeded ${bookmarkCount} bookmarks.`);
+    // --- End Seed Bookmarks ---
 
     console.log('Database seeding completed successfully!');
 
