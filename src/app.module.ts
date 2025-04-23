@@ -17,7 +17,7 @@ import { Task } from '@tasks/task.entity';
 import { Application } from '@applications/application.entity';
 import { Bookmark } from '@bookmarks/bookmark.entity';
 
-// --- Import ALL Feature Modules ---
+// --- Import ALL Feature Modules ----
 import { AuthModule } from '@auth/auth.module';
 import { UserModule } from '@users/user.module';
 import { ProfileModule } from '@profiles/profile.module';
