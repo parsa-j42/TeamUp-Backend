@@ -31,6 +31,7 @@ import { ApplicationModule } from '@applications/application.module';
 import { BookmarkModule } from '@bookmarks/bookmark.module';
 import { PortfolioProject } from '@portfolio-projects/portfolio-project.entity';
 import { PortfolioProjectModule } from '@portfolio-projects/portfolio-project.module';
+import { RecommendationsModule } from '@/recommendations/recommendations.module';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { PortfolioProjectModule } from '@portfolio-projects/portfolio-project.mo
     ApplicationModule,
     BookmarkModule,
     PortfolioProjectModule,
+    RecommendationsModule,
   ],
   controllers: [AppController], // Keep default AppController if needed
   providers: [AppService], // Keep default AppService if needed
