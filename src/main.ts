@@ -22,8 +22,8 @@ async function bootstrap() {
   );
 
   // --- CORS ---
-  // Configure CORS more specifically if needed
-  app.enableCors(); // Enables basic CORS for all origins
+  const corsOrigin = configService.get<string>('CORS_ORIGIN', 'http://localhost:5173');
+  app.enableCors({ origin: corsOrigin });
 
   // --- Swagger ---
   const swaggerConfig = new DocumentBuilder()

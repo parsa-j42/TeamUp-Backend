@@ -66,8 +66,7 @@ import { RecommendationsModule } from '@/recommendations/recommendations.module'
           Bookmark,
           PortfolioProject,
         ],
-        // synchronize: configService.get<string>('NODE_ENV') !== 'production', // synchronize: true only for dev
-        synchronize: true, // True for capcon
+        synchronize: configService.get<string>('NODE_ENV') !== 'production',
         logging: configService.get<string>('NODE_ENV') !== 'production', // enable logging in dev
       }),
       inject: [ConfigService], // Inject ConfigService into the factory
