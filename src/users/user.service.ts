@@ -129,7 +129,15 @@ export class UserService {
     try {
       let user = await this.findByCognitoSub(dto.cognitoSub);
 
+      // Fallback: a row with this email may already exist under a stale
+      // cognitoSub (e.g. the Cognito user was deleted and recreated, which
+      // mints a new sub). Reconcile by email and adopt the new sub.
+      if (!user) {
+        user = await this.findByEmail(dto.email);
+      }
+
       if (user) {
+        user.cognitoSub = dto.cognitoSub;
         user.email = dto.email;
         user.firstName = dto.firstName;
         user.lastName = dto.lastName;
