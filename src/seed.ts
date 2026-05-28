@@ -1,12 +1,10 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
-import { faker } from '@faker-js/faker';
+import { Repository } from 'typeorm';
 import { INestApplicationContext } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-// Import ALL your entities here
 import { User } from '@users/user.entity';
 import { UserProfile } from '@profiles/profile.entity';
 import { Skill } from '@skills/skill.entity';
@@ -23,78 +21,974 @@ import { ApplicationStatus } from '@common/enums/application-status.enum';
 import { ProjectRole } from '@common/enums/project-role.enum';
 import { TaskStatus } from '@common/enums/task-status.enum';
 
-// --- Configuration ---
+// ===========================================================================
+// Curated demo dataset for TeamUp — a SAIT student collaboration platform.
+// Everything here is hand-written so the live demo reads as a real community:
+// coherent people, believable projects, sensible milestones/tasks, and a
+// demo user wired into the network (owns projects, is a member, has sent and
+// received applications, has bookmarks, and gets real recommendations).
+// ===========================================================================
 
-const NUM_PROJECTS_TO_CREATE = 40; // Create projects owned by the demo users
-const MAX_MEMBERS_PER_PROJECT = 6;
-const MAX_TASKS_PER_MILESTONE = 5;
-const MAX_MILESTONES_PER_PROJECT = 4;
-const MAX_APPLICATIONS_PER_USER = 6; // Max apps *sent* by each demo user
-const MAX_BOOKMARKS_PER_USER = 10;  // Max bookmarks *created* by each demo user
+const DEMO = 'DEMO'; // sentinel for "the live demo user" in owner/team fields
 
-// Predefined skills and interests
-const PREDEFINED_SKILLS = [
-  'React', 'Node.js', 'TypeScript', 'JavaScript', 'HTML', 'CSS', 'Python', 'Django',
-  'Flask', 'Java', 'Spring Boot', 'PostgreSQL', 'MongoDB', 'Docker', 'AWS', 'Azure',
-  'Figma', 'Adobe XD', 'UI Design', 'UX Research', 'Project Management', 'Agile',
-  'Scrum', 'Marketing', 'Content Writing', 'SEO', 'Data Analysis', 'Machine Learning',
-  'Graphic Design', 'Video Editing', 'NestJS', 'TypeORM', 'Mantine', 'Vite',
-  'Swift', 'Kotlin', 'iOS Development', 'Android Development', 'Unity', 'Unreal Engine',
-  'C#', 'C++', 'Go', 'Ruby on Rails', 'PHP', 'Laravel', 'Vue.js', 'Angular',
-  'Market Research', 'Business Strategy', 'Financial Modeling', 'Public Speaking',
-  'Copywriting', 'Social Media Marketing', 'Illustration', 'Photography',
-];
-const PREDEFINED_INTERESTS = [
-  'Web Development', 'Mobile Development', 'Game Development', 'Artificial Intelligence',
-  'Machine Learning', 'Data Science', 'Cybersecurity', 'Cloud Computing', 'Blockchain',
-  'UI/UX Design', 'Graphic Design', 'Digital Marketing', 'Entrepreneurship', 'Finance',
-  'Sustainability', 'Education Technology', 'Health Tech', 'Music Production', 'Film Making',
-  'Creative Writing', 'Photography', 'Virtual Reality', 'Augmented Reality', 'Robotics',
-];
-const PREDEFINED_TAGS = ['Design', 'Development', 'Business', 'Community', 'Content & Media', 'Science', 'Personal Idea', 'Startup Idea', 'Mobile App', 'Web App', 'AI/ML', 'Hardware', 'Social Good']; // Added more tags
-const USER_TYPES = ['Undergraduate', 'Graduate', 'Instructor', 'Alumni'];
-const PROGRAMS = ['Software Development', 'Data Science', 'Graphic Design', 'Business Administration', 'Marketing', 'New Media Production', 'Information Technology', 'Web Developer Fast-Track'];
-const MENTOR_REQUESTS = ['looking', 'open', 'one-time', 'none']; // 'none' represents null/undefined
-const PROJECT_TYPES = ['remote', 'in-person', 'hybrid'];
-const NUM_MEMBERS_OPTIONS = ['1', '2-4', '5-10', '10+'];
-
-// Skill Categories for Interdisciplinary Logic
-const SKILL_CATEGORIES = {
-  TECH: ['React', 'Node.js', 'TypeScript', 'JavaScript', 'HTML', 'CSS', 'Python', 'Django', 'Flask', 'Java', 'Spring Boot', 'PostgreSQL', 'MongoDB', 'Docker', 'AWS', 'Azure', 'NestJS', 'TypeORM', 'Vite', 'Swift', 'Kotlin', 'iOS Development', 'Android Development', 'Unity', 'Unreal Engine', 'C#', 'C++', 'Go', 'Ruby on Rails', 'PHP', 'Laravel', 'Vue.js', 'Angular', 'Mobile Development', 'Game Development', 'Cybersecurity', 'Cloud Computing', 'Blockchain', 'Robotics'],
-  DESIGN: ['Figma', 'Adobe XD', 'UI Design', 'UX Research', 'Graphic Design', 'Illustration'],
-  BUSINESS: ['Project Management', 'Agile', 'Scrum', 'Marketing', 'Content Writing', 'SEO', 'Market Research', 'Business Strategy', 'Financial Modeling', 'Public Speaking', 'Copywriting', 'Social Media Marketing', 'Entrepreneurship', 'Business Administration'],
-  MEDIA_SCIENCE: ['Data Analysis', 'Machine Learning', 'Artificial Intelligence', 'Data Science', 'Video Editing', 'Photography', 'Music Production', 'Film Making', 'Creative Writing', 'Virtual Reality', 'Augmented Reality', 'Education Technology', 'Health Tech', 'Sustainability'],
+const avatar = (n: number) => `https://i.pravatar.cc/300?img=${n}`;
+const banner = (slug: string) => `https://picsum.photos/seed/${slug}-bn/1200/300`;
+const cover = (slug: string) => `https://picsum.photos/seed/${slug}/600/400`;
+const monthsFromNow = (n: number) => {
+  const d = new Date();
+  d.setMonth(d.getMonth() + n);
+  return d;
 };
 
-// Helper function to get skills from specific categories
-function getSkillsFromCategories(categories: string[], maxTotalSkills: number): string[] {
-  let selectedSkills: string[] = [];
-  const availableSkills = categories.flatMap(cat => SKILL_CATEGORIES[cat as keyof typeof SKILL_CATEGORIES] || []);
-  if (availableSkills.length === 0) return [];
-
-  const shuffled = availableSkills.slice().sort(() => 0.5 - Math.random());
-  // Ensure at least 1 skill is selected if possible, up to maxTotalSkills
-  const count = Math.max(1, Math.floor(Math.random() * (Math.min(maxTotalSkills, availableSkills.length) + 1)));
-  return shuffled.slice(0, count);
+interface PersonaWork {
+  dateRange: string;
+  workName: string;
+  description: string;
+}
+interface PersonaPortfolio {
+  title: string;
+  description: string;
+  tags: string[];
+  slug: string;
+}
+interface Persona {
+  username: string;
+  firstName: string;
+  lastName: string;
+  userType: string;
+  program: string;
+  status: string;
+  bio: string;
+  avatar: number;
+  skills: string[];
+  interests: string[];
+  work: PersonaWork[];
+  portfolio: PersonaPortfolio[];
 }
 
-// Helper function to get random subset
-function getRandomSubset<T>(arr: T[], maxSize: number): T[] {
-  const shuffled = arr.slice().sort(() => 0.5 - Math.random());
-  const size = Math.floor(Math.random() * (Math.min(maxSize, arr.length) + 1));
-  return shuffled.slice(0, size);
+// --- The demo user's profile (identity/email/cognitoSub stay from signup) ---
+// Full-stack web developer so recommendations land on real, matching projects.
+const DEMO_PROFILE = {
+  userType: 'Undergraduate',
+  program: 'Software Development',
+  status: 'Full-Stack Developer · open to collaborating',
+  institution: 'SAIT',
+  bio: "Third-year Software Development student who loves turning rough ideas into shipped products. Most at home in a React + NestJS codebase, but I'll happily jump into Figma to keep the UX honest. Looking for ambitious teammates to build something worth showing off.",
+  signupExperience:
+    "I've built a handful of full-stack side projects and interned on a small product team. Comfortable owning a feature end to end — schema, API, UI, and the polish in between.",
+  avatar: 12,
+  skills: ['React', 'TypeScript', 'Node.js', 'NestJS', 'PostgreSQL', 'UI Design', 'Figma', 'Docker'],
+  interests: ['Web Development', 'UI/UX Design', 'Entrepreneurship', 'Cloud Computing'],
+  work: [
+    {
+      dateRange: 'May 2024 - Aug 2024',
+      workName: 'Product Engineering Intern · Northstar Labs',
+      description:
+        'Shipped a customer-facing dashboard in React and TypeScript, and built the supporting REST endpoints. Cut initial load time roughly in half by paginating the heaviest queries.',
+    },
+    {
+      dateRange: 'Sep 2023 - Present',
+      workName: 'Freelance Web Developer',
+      description:
+        'Design and build small business websites and internal tools end to end, from Figma mockups through deployment.',
+    },
+  ],
+  portfolio: [
+    {
+      title: 'Ledgerly — Personal Finance Tracker',
+      description:
+        'A budgeting app with envelope-style categories, recurring transactions, and a clean monthly overview. Built with React, NestJS, and PostgreSQL.',
+      tags: ['React', 'NestJS', 'PostgreSQL'],
+      slug: 'ledgerly',
+    },
+    {
+      title: 'Studyloop — Spaced-Repetition Flashcards',
+      description:
+        'A flashcard app with an SM-2 review scheduler and shareable decks. Focused on a fast, keyboard-driven study flow.',
+      tags: ['TypeScript', 'React', 'UI Design'],
+      slug: 'studyloop',
+    },
+  ],
+};
+
+// --- Synthetic community members ---
+const PERSONAS: Persona[] = [
+  {
+    username: 'maya.chen',
+    firstName: 'Maya',
+    lastName: 'Chen',
+    userType: 'Undergraduate',
+    program: 'Graphic Design',
+    status: 'Product Designer · UI/UX',
+    bio: 'Designer who cares about the small interactions most people never notice. I prototype fast in Figma and love pairing with developers to make sure the handoff actually survives contact with code.',
+    avatar: 5,
+    skills: ['Figma', 'UI Design', 'UX Research', 'Adobe XD', 'Illustration'],
+    interests: ['UI/UX Design', 'Graphic Design', 'Health Tech'],
+    work: [
+      {
+        dateRange: 'Jan 2024 - Present',
+        workName: 'UX Designer · SAIT Student Innovation Lab',
+        description: 'Run usability sessions and turn findings into design systems the student dev teams can build on.',
+      },
+    ],
+    portfolio: [
+      {
+        title: 'Rooted — Plant Care Companion',
+        description: 'An app concept that reminds you when to water, repot, and fertilize, with a calm illustrated visual language.',
+        tags: ['Figma', 'UI Design', 'Illustration'],
+        slug: 'rooted',
+      },
+    ],
+  },
+  {
+    username: 'daniel.okafor',
+    firstName: 'Daniel',
+    lastName: 'Okafor',
+    userType: 'Graduate',
+    program: 'Data Science',
+    status: 'ML Engineer · Data Science grad',
+    bio: 'I like the messy middle of data work — cleaning, framing the problem, and figuring out whether a model is actually helping anyone. Python by day, occasionally Go when things need to be fast.',
+    avatar: 33,
+    skills: ['Python', 'Machine Learning', 'Data Analysis', 'Go', 'AWS'],
+    interests: ['Machine Learning', 'Data Science', 'Artificial Intelligence', 'Sustainability'],
+    work: [
+      {
+        dateRange: 'Jun 2023 - Present',
+        workName: 'Data Science Researcher · Calgary Climate Initiative',
+        description: 'Built forecasting models for municipal energy usage and packaged them behind a small Python API.',
+      },
+    ],
+    portfolio: [
+      {
+        title: 'GridSense — Energy Demand Forecasting',
+        description: 'A time-series model that predicts neighbourhood electricity demand to help plan load balancing.',
+        tags: ['Python', 'Machine Learning', 'Data Analysis'],
+        slug: 'gridsense',
+      },
+    ],
+  },
+  {
+    username: 'sofia.ramirez',
+    firstName: 'Sofia',
+    lastName: 'Ramirez',
+    userType: 'Undergraduate',
+    program: 'Marketing',
+    status: 'Growth & Content Marketer',
+    bio: 'I help good products find the people who need them. Equal parts copywriting, SEO, and obsessing over the analytics dashboard. Always looking for a technical team that wants a marketer in the room early.',
+    avatar: 9,
+    skills: ['Marketing', 'SEO', 'Content Writing', 'Social Media Marketing', 'Copywriting'],
+    interests: ['Digital Marketing', 'Entrepreneurship', 'Creative Writing'],
+    work: [
+      {
+        dateRange: 'Mar 2023 - Present',
+        workName: 'Marketing Lead · Bow River Coffee Co.',
+        description: 'Grew the local roaster’s online orders through a content + email strategy and a rebuilt SEO foundation.',
+      },
+    ],
+    portfolio: [
+      {
+        title: 'Launchpad — Student Startup Newsletter',
+        description: 'Founded and grew a weekly newsletter covering Calgary student startups to 2,000+ subscribers.',
+        tags: ['Content Writing', 'SEO', 'Marketing'],
+        slug: 'launchpad',
+      },
+    ],
+  },
+  {
+    username: 'liam.walsh',
+    firstName: 'Liam',
+    lastName: 'Walsh',
+    userType: 'Undergraduate',
+    program: 'Software Development',
+    status: 'Mobile Developer · iOS & Android',
+    bio: 'Mobile-first developer. I care about apps that feel native and fast, and I’ve shipped on both the App Store and Play Store. Currently going deep on Swift concurrency.',
+    avatar: 52,
+    skills: ['Swift', 'Kotlin', 'iOS Development', 'Android Development', 'JavaScript'],
+    interests: ['Mobile Development', 'Health Tech', 'Game Development'],
+    work: [
+      {
+        dateRange: 'Sep 2023 - Present',
+        workName: 'iOS Developer · Trailhead Fitness',
+        description: 'Built the workout-tracking module and offline sync for a fitness app with 10k+ downloads.',
+      },
+    ],
+    portfolio: [
+      {
+        title: 'Summit — Hiking Trail Tracker',
+        description: 'An iOS app that logs hikes with offline maps and elevation profiles for the Canadian Rockies.',
+        tags: ['Swift', 'iOS Development'],
+        slug: 'summit',
+      },
+    ],
+  },
+  {
+    username: 'aisha.khan',
+    firstName: 'Aisha',
+    lastName: 'Khan',
+    userType: 'Graduate',
+    program: 'Information Technology',
+    status: 'Cloud & DevOps Engineer',
+    bio: 'I keep things running. Infrastructure as code, CI/CD pipelines, and making deploys boring (in the best way). Happiest with a terminal open and a flaky pipeline to fix.',
+    avatar: 44,
+    skills: ['AWS', 'Docker', 'Azure', 'Python', 'PostgreSQL', 'Go'],
+    interests: ['Cloud Computing', 'Cybersecurity', 'Web Development'],
+    work: [
+      {
+        dateRange: 'Jan 2022 - Present',
+        workName: 'DevOps Engineer · Prairie Cloud Solutions',
+        description: 'Migrated client workloads to containerized AWS infrastructure and set up zero-downtime deploys.',
+      },
+    ],
+    portfolio: [
+      {
+        title: 'DeployKit — One-Command Infra Templates',
+        description: 'Reusable Terraform + Docker templates that spin up a production-ready web stack in minutes.',
+        tags: ['AWS', 'Docker'],
+        slug: 'deploykit',
+      },
+    ],
+  },
+  {
+    username: 'noah.fischer',
+    firstName: 'Noah',
+    lastName: 'Fischer',
+    userType: 'Undergraduate',
+    program: 'New Media Production',
+    status: 'Video & Motion Designer',
+    bio: 'Storyteller with a camera and an After Effects timeline. I make the launch videos, the explainer animations, and the social cuts that make a project look alive.',
+    avatar: 60,
+    skills: ['Video Editing', 'Photography', 'Graphic Design', 'Illustration'],
+    interests: ['Film Making', 'Creative Writing', 'Music Production'],
+    work: [
+      {
+        dateRange: 'May 2023 - Present',
+        workName: 'Freelance Videographer',
+        description: 'Produce brand and event videos for local startups, from storyboard to final colour grade.',
+      },
+    ],
+    portfolio: [
+      {
+        title: 'Reel Stories — Startup Launch Films',
+        description: 'A collection of 60-second launch films made for early-stage Calgary founders.',
+        tags: ['Video Editing', 'Photography'],
+        slug: 'reelstories',
+      },
+    ],
+  },
+  {
+    username: 'priya.nair',
+    firstName: 'Priya',
+    lastName: 'Nair',
+    userType: 'Undergraduate',
+    program: 'Software Development',
+    status: 'Backend Developer · APIs & Data',
+    bio: 'Backend developer who enjoys a well-designed schema more than is probably healthy. Node and Python mostly, with a soft spot for clean, well-documented APIs.',
+    avatar: 16,
+    skills: ['Node.js', 'TypeScript', 'PostgreSQL', 'Python', 'MongoDB', 'NestJS'],
+    interests: ['Web Development', 'Cloud Computing', 'Data Science'],
+    work: [
+      {
+        dateRange: 'Jun 2024 - Present',
+        workName: 'Backend Intern · FinTech Foundry',
+        description: 'Built transaction-processing endpoints and added integration tests across the payments service.',
+      },
+    ],
+    portfolio: [
+      {
+        title: 'OpenMenu — Restaurant API',
+        description: 'A public API and admin panel for restaurants to manage menus, hours, and online orders.',
+        tags: ['Node.js', 'PostgreSQL', 'NestJS'],
+        slug: 'openmenu',
+      },
+    ],
+  },
+  {
+    username: 'ethan.brooks',
+    firstName: 'Ethan',
+    lastName: 'Brooks',
+    userType: 'Alumni',
+    program: 'Business Administration',
+    status: 'Founder · Business Strategy',
+    bio: 'SAIT alum and second-time founder. I spend my time on strategy, fundraising, and making sure the team is building the right thing. Mentor when I can — I got a lot of help early on.',
+    avatar: 68,
+    skills: ['Business Strategy', 'Financial Modeling', 'Market Research', 'Public Speaking', 'Project Management'],
+    interests: ['Entrepreneurship', 'Finance', 'Sustainability'],
+    work: [
+      {
+        dateRange: 'Jan 2021 - Present',
+        workName: 'Co-Founder & CEO · Verde Logistics',
+        description: 'Bootstrapped a last-mile delivery startup focused on low-emission routes to a small profitable team.',
+      },
+    ],
+    portfolio: [
+      {
+        title: 'Verde — Green Last-Mile Delivery',
+        description: 'Business case and go-to-market plan for an electric-bike delivery network in dense urban cores.',
+        tags: ['Business Strategy', 'Market Research'],
+        slug: 'verde',
+      },
+    ],
+  },
+  {
+    username: 'grace.thompson',
+    firstName: 'Grace',
+    lastName: 'Thompson',
+    userType: 'Undergraduate',
+    program: 'Web Developer Fast-Track',
+    status: 'Frontend Developer · React',
+    bio: 'Career-changer turned frontend developer. I came from teaching, so I think a lot about clarity and accessibility. React, TypeScript, and a growing love for design systems.',
+    avatar: 24,
+    skills: ['React', 'TypeScript', 'CSS', 'HTML', 'JavaScript', 'Vue.js'],
+    interests: ['Web Development', 'UI/UX Design', 'Education Technology'],
+    work: [
+      {
+        dateRange: 'Feb 2024 - Present',
+        workName: 'Frontend Developer · BrightPath EdTech',
+        description: 'Build accessible, responsive learning interfaces and maintain the shared component library.',
+      },
+    ],
+    portfolio: [
+      {
+        title: 'ClassKit — Accessible Quiz Builder',
+        description: 'A tool that lets teachers build keyboard- and screen-reader-friendly quizzes in minutes.',
+        tags: ['React', 'TypeScript', 'CSS'],
+        slug: 'classkit',
+      },
+    ],
+  },
+  {
+    username: 'marcus.lee',
+    firstName: 'Marcus',
+    lastName: 'Lee',
+    userType: 'Undergraduate',
+    program: 'Software Development',
+    status: 'Game Developer · Unity',
+    bio: 'Game dev who started by modding games as a kid and never stopped. Unity and C# mostly. I love game jams and the chaos of building something playable in 48 hours.',
+    avatar: 11,
+    skills: ['Unity', 'C#', 'C++', 'Unreal Engine', 'JavaScript'],
+    interests: ['Game Development', 'Virtual Reality', 'Artificial Intelligence'],
+    work: [
+      {
+        dateRange: 'Sep 2023 - Present',
+        workName: 'Gameplay Programmer · Indie Collective',
+        description: 'Prototype gameplay mechanics and build tools that speed up the team’s level design workflow.',
+      },
+    ],
+    portfolio: [
+      {
+        title: 'Lumen — Puzzle Platformer',
+        description: 'A light-bending puzzle platformer built in Unity for a 72-hour game jam (top 5 finish).',
+        tags: ['Unity', 'C#'],
+        slug: 'lumen',
+      },
+    ],
+  },
+  {
+    username: 'hannah.muller',
+    firstName: 'Hannah',
+    lastName: 'Müller',
+    userType: 'Graduate',
+    program: 'Data Science',
+    status: 'Data Analyst · Viz & Insights',
+    bio: 'I turn spreadsheets nobody wants to open into dashboards people actually use. SQL, Python, and a strong opinion that most charts should be simpler than they are.',
+    avatar: 47,
+    skills: ['Data Analysis', 'Python', 'PostgreSQL', 'Machine Learning'],
+    interests: ['Data Science', 'Health Tech', 'Sustainability'],
+    work: [
+      {
+        dateRange: 'Jan 2023 - Present',
+        workName: 'Data Analyst · Foothills Health Network',
+        description: 'Built reporting dashboards that reduced manual report prep from days to minutes for clinic staff.',
+      },
+    ],
+    portfolio: [
+      {
+        title: 'PulseBoard — Clinic Analytics',
+        description: 'A dashboard that surfaces wait-time and capacity trends across a network of clinics.',
+        tags: ['Data Analysis', 'Python'],
+        slug: 'pulseboard',
+      },
+    ],
+  },
+  {
+    username: 'omar.hassan',
+    firstName: 'Omar',
+    lastName: 'Hassan',
+    userType: 'Instructor',
+    program: 'Software Development',
+    status: 'Instructor · Full-Stack & Mentorship',
+    bio: 'I teach full-stack development at SAIT and mentor student teams on the side. Twelve years in industry before this. My whole job is helping people get unstuck, so don’t hesitate to reach out.',
+    avatar: 13,
+    skills: ['JavaScript', 'TypeScript', 'React', 'Node.js', 'Java', 'Spring Boot', 'PostgreSQL'],
+    interests: ['Web Development', 'Education Technology', 'Cloud Computing'],
+    work: [
+      {
+        dateRange: 'Aug 2019 - Present',
+        workName: 'Software Development Instructor · SAIT',
+        description: 'Teach web and backend development and run the capstone mentorship program.',
+      },
+      {
+        dateRange: 'Jun 2007 - Jul 2019',
+        workName: 'Senior Engineer · Various',
+        description: 'Built and led teams across fintech and logistics products before moving into teaching.',
+      },
+    ],
+    portfolio: [
+      {
+        title: 'Capstone Mentor Handbook',
+        description: 'An open guide for student teams covering scoping, git workflow, and shipping a real MVP.',
+        tags: ['Project Management', 'Content Writing'],
+        slug: 'mentorhandbook',
+      },
+    ],
+  },
+  {
+    username: 'ava.rossi',
+    firstName: 'Ava',
+    lastName: 'Rossi',
+    userType: 'Undergraduate',
+    program: 'New Media Production',
+    status: 'Content Creator · Social & Brand',
+    bio: 'Social-first content creator. I script, shoot, and edit short-form video, and I think in hooks and retention curves. Looking for product teams who want their launch to actually get seen.',
+    avatar: 20,
+    skills: ['Social Media Marketing', 'Video Editing', 'Copywriting', 'Photography', 'Content Writing'],
+    interests: ['Digital Marketing', 'Film Making', 'Creative Writing'],
+    work: [
+      {
+        dateRange: 'Apr 2023 - Present',
+        workName: 'Content Creator · Freelance',
+        description: 'Produce short-form video campaigns for local brands, several with 100k+ organic views.',
+      },
+    ],
+    portfolio: [
+      {
+        title: 'Hook — Short-Form Playbook',
+        description: 'A library of short-form video templates and hooks tuned for product launches.',
+        tags: ['Social Media Marketing', 'Video Editing'],
+        slug: 'hook',
+      },
+    ],
+  },
+  {
+    username: 'jacob.smith',
+    firstName: 'Jacob',
+    lastName: 'Smith',
+    userType: 'Undergraduate',
+    program: 'Information Technology',
+    status: 'Security & Backend Enthusiast',
+    bio: 'IT student leaning hard into security. I run a home lab, break my own apps for fun, and try to write code that doesn’t make tomorrow-me cry. Python and a bit of Rust on weekends.',
+    avatar: 50,
+    skills: ['Python', 'Docker', 'PostgreSQL', 'Node.js', 'AWS'],
+    interests: ['Cybersecurity', 'Cloud Computing', 'Blockchain'],
+    work: [
+      {
+        dateRange: 'May 2024 - Present',
+        workName: 'IT Security Intern · SecureNorth',
+        description: 'Help run vulnerability scans and document remediation steps for small-business clients.',
+      },
+    ],
+    portfolio: [
+      {
+        title: 'SafeKeys — Password Health Checker',
+        description: 'A self-hosted tool that audits password strength and flags reused credentials across a vault.',
+        tags: ['Python', 'Docker'],
+        slug: 'safekeys',
+      },
+    ],
+  },
+  {
+    username: 'isabella.santos',
+    firstName: 'Isabella',
+    lastName: 'Santos',
+    userType: 'Undergraduate',
+    program: 'Graphic Design',
+    status: 'Brand & Visual Designer',
+    bio: 'Brand designer who loves the moment a logo, palette, and voice finally click. I work mostly in Figma and Illustrator and care a lot about consistency across a product.',
+    avatar: 31,
+    skills: ['Figma', 'Illustration', 'Graphic Design', 'Adobe XD', 'UI Design'],
+    interests: ['Graphic Design', 'UI/UX Design', 'Entrepreneurship'],
+    work: [
+      {
+        dateRange: 'Jan 2024 - Present',
+        workName: 'Brand Designer · Freelance',
+        description: 'Develop brand identities and design systems for early-stage startups and student ventures.',
+      },
+    ],
+    portfolio: [
+      {
+        title: 'Identity Kit — Startup Branding',
+        description: 'A set of complete brand identities, each with logo, type, palette, and usage guidelines.',
+        tags: ['Figma', 'Graphic Design', 'Illustration'],
+        slug: 'identitykit',
+      },
+    ],
+  },
+];
+
+interface SeedProject {
+  owner: string; // username or DEMO
+  title: string;
+  description: string;
+  numOfMembers: string;
+  projectType: string;
+  mentorRequest: string;
+  preferredMentor: string;
+  requiredSkills: string[];
+  tags: string[];
+  requiredRoles: string;
+  slug: string;
+  startMonthsAgo: number;
+  endMonthsAhead: number | null;
+  team: string[]; // additional members (usernames or DEMO), excluding owner
+  milestones: { title: string; active: boolean; tasks: { name: string; status: TaskStatus }[] }[];
 }
 
-// Helper function to get a random element
-function getRandomElement<T>(arr: T[]): T {
-  if (arr.length === 0) {
-    // Return a default or handle appropriately if necessary, e.g., for optional fields
-    // For now, throwing error as it indicates a logic issue in seeding setup
-    throw new Error("Cannot get random element from an empty array.");
-  }
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-// --- End Configuration & Helpers ---
+const PROJECTS: SeedProject[] = [
+  {
+    owner: 'maya.chen',
+    title: 'MindEase — Student Wellness App',
+    description:
+      'A mobile-first wellness app for students: mood check-ins, guided breathing, and a private journal. We want it to feel calm and genuinely helpful, not like another productivity tracker. Design direction is set — now we need to build it and validate it with real students on campus.',
+    numOfMembers: '5-10',
+    projectType: 'hybrid',
+    mentorRequest: 'looking',
+    preferredMentor: 'Health tech or clinical psychology background',
+    requiredSkills: ['React', 'TypeScript', 'Node.js', 'UI Design', 'Figma'],
+    tags: ['Mobile App', 'Health Tech', 'Design', 'Development', 'Social Good'],
+    requiredRoles:
+      'Looking for two frontend developers comfortable with React, one backend developer for the API and data layer, and a researcher to help run on-campus usability testing.',
+    slug: 'mindease',
+    startMonthsAgo: 2,
+    endMonthsAhead: 4,
+    team: [DEMO, 'priya.nair', 'hannah.muller'],
+    milestones: [
+      {
+        title: 'Milestone 1: Research & Design Foundation',
+        active: false,
+        tasks: [
+          { name: 'Run student interviews on stress and wellbeing', status: TaskStatus.DONE },
+          { name: 'Define core mood check-in flow', status: TaskStatus.DONE },
+          { name: 'Build high-fidelity Figma prototype', status: TaskStatus.DONE },
+        ],
+      },
+      {
+        title: 'Milestone 2: MVP Build',
+        active: true,
+        tasks: [
+          { name: 'Set up React project and design tokens', status: TaskStatus.DONE },
+          { name: 'Implement mood check-in screen', status: TaskStatus.IN_PROGRESS },
+          { name: 'Build journaling API and storage', status: TaskStatus.IN_PROGRESS },
+          { name: 'Add guided breathing animation', status: TaskStatus.TODO },
+        ],
+      },
+      {
+        title: 'Milestone 3: Campus Pilot',
+        active: false,
+        tasks: [
+          { name: 'Recruit 20 students for pilot', status: TaskStatus.TODO },
+          { name: 'Instrument analytics for retention', status: TaskStatus.TODO },
+        ],
+      },
+    ],
+  },
+  {
+    owner: 'daniel.okafor',
+    title: 'EcoRoute — Carbon-Aware Trip Planner',
+    description:
+      'A web app that plans trips around Calgary and shows the carbon cost of each option — transit, bike, carpool, or drive. The model is working in a notebook; we need to wrap it in a real API and a frontend people would actually use. Great fit if you care about climate and clean data pipelines.',
+    numOfMembers: '2-4',
+    projectType: 'remote',
+    mentorRequest: 'open',
+    preferredMentor: 'Someone with sustainability or transportation data experience',
+    requiredSkills: ['Python', 'React', 'Node.js', 'Data Analysis', 'PostgreSQL'],
+    tags: ['Web App', 'AI/ML', 'Science', 'Social Good', 'Development'],
+    requiredRoles:
+      'Need a frontend developer to build the trip-planning UI and a backend developer to productionize the Python model behind a clean API.',
+    slug: 'ecoroute',
+    startMonthsAgo: 1,
+    endMonthsAhead: 5,
+    team: ['aisha.khan', DEMO],
+    milestones: [
+      {
+        title: 'Milestone 1: Model to API',
+        active: true,
+        tasks: [
+          { name: 'Wrap forecasting model in a Python service', status: TaskStatus.IN_PROGRESS },
+          { name: 'Define trip and emissions data schema', status: TaskStatus.DONE },
+          { name: 'Containerize the service with Docker', status: TaskStatus.TODO },
+        ],
+      },
+      {
+        title: 'Milestone 2: Frontend & Maps',
+        active: false,
+        tasks: [
+          { name: 'Build route input and results UI', status: TaskStatus.TODO },
+          { name: 'Integrate map and route rendering', status: TaskStatus.TODO },
+        ],
+      },
+    ],
+  },
+  {
+    owner: 'ethan.brooks',
+    title: 'Pitchdeck — AI Pitch Practice Tool',
+    description:
+      'A tool that lets founders rehearse their pitch and get instant feedback on pacing, filler words, and clarity. I’ve validated demand with a dozen founders and have the business side covered — I need a technical team to build the MVP. Equity-style collaboration for the right people.',
+    numOfMembers: '2-4',
+    projectType: 'hybrid',
+    mentorRequest: 'none',
+    preferredMentor: '',
+    requiredSkills: ['React', 'TypeScript', 'Node.js', 'Machine Learning', 'Python'],
+    tags: ['Startup Idea', 'AI/ML', 'Web App', 'Business', 'Development'],
+    requiredRoles:
+      'Looking for a full-stack developer to lead the build and someone comfortable with speech/ML APIs for the feedback engine.',
+    slug: 'pitchdeck',
+    startMonthsAgo: 1,
+    endMonthsAhead: 6,
+    team: ['priya.nair'],
+    milestones: [
+      {
+        title: 'Milestone 1: MVP Scope & Build',
+        active: true,
+        tasks: [
+          { name: 'Finalize MVP feature list with founders', status: TaskStatus.DONE },
+          { name: 'Build recording and transcript flow', status: TaskStatus.IN_PROGRESS },
+          { name: 'Prototype filler-word detection', status: TaskStatus.TODO },
+        ],
+      },
+    ],
+  },
+  {
+    owner: 'liam.walsh',
+    title: 'TrailMate — Offline Hiking Companion',
+    description:
+      'A cross-platform mobile app for hikers in the Rockies: offline trail maps, elevation, and a safety check-in that texts a contact if you don’t return on time. iOS prototype exists; we want to bring it to Android and harden the offline sync.',
+    numOfMembers: '2-4',
+    projectType: 'remote',
+    mentorRequest: 'one-time',
+    preferredMentor: 'Mobile dev who has shipped offline-first apps',
+    requiredSkills: ['Swift', 'Kotlin', 'iOS Development', 'Android Development'],
+    tags: ['Mobile App', 'Development', 'Social Good'],
+    requiredRoles: 'Need an Android developer (Kotlin) and a designer to refine the map and check-in screens.',
+    slug: 'trailmate',
+    startMonthsAgo: 3,
+    endMonthsAhead: 3,
+    team: ['marcus.lee', 'isabella.santos'],
+    milestones: [
+      {
+        title: 'Milestone 1: Android Port',
+        active: true,
+        tasks: [
+          { name: 'Set up Kotlin project and shared models', status: TaskStatus.DONE },
+          { name: 'Implement offline map caching', status: TaskStatus.IN_PROGRESS },
+          { name: 'Port safety check-in feature', status: TaskStatus.TODO },
+        ],
+      },
+      {
+        title: 'Milestone 2: Polish & Launch',
+        active: false,
+        tasks: [
+          { name: 'Refine map UI with designer', status: TaskStatus.TODO },
+          { name: 'Beta test with hiking club', status: TaskStatus.TODO },
+        ],
+      },
+    ],
+  },
+  {
+    owner: 'grace.thompson',
+    title: 'ClassConnect — Peer Tutoring Platform',
+    description:
+      'A web platform that matches students who need help with peers who can teach it, scheduled around real timetables. Accessibility is a first-class requirement, not an afterthought. Looking for developers and a designer who care about inclusive products.',
+    numOfMembers: '5-10',
+    projectType: 'hybrid',
+    mentorRequest: 'looking',
+    preferredMentor: 'EdTech or accessibility expertise welcome',
+    requiredSkills: ['React', 'TypeScript', 'Node.js', 'PostgreSQL', 'UI Design'],
+    tags: ['Web App', 'Education Technology', 'Social Good', 'Development', 'Design'],
+    requiredRoles:
+      'Need two frontend devs, a backend dev for matching and scheduling, and a UX designer focused on accessibility.',
+    slug: 'classconnect',
+    startMonthsAgo: 2,
+    endMonthsAhead: 5,
+    team: ['omar.hassan', 'maya.chen'],
+    milestones: [
+      {
+        title: 'Milestone 1: Matching Engine',
+        active: true,
+        tasks: [
+          { name: 'Design subject and availability schema', status: TaskStatus.DONE },
+          { name: 'Build peer-matching algorithm', status: TaskStatus.IN_PROGRESS },
+          { name: 'Create scheduling API', status: TaskStatus.TODO },
+        ],
+      },
+      {
+        title: 'Milestone 2: Accessible UI',
+        active: false,
+        tasks: [
+          { name: 'Build booking flow with keyboard support', status: TaskStatus.TODO },
+          { name: 'Run screen-reader audit', status: TaskStatus.TODO },
+        ],
+      },
+    ],
+  },
+  {
+    owner: 'marcus.lee',
+    title: 'Pixelforge — Co-op Roguelike',
+    description:
+      'A two-player co-op roguelike built in Unity. Procedurally generated dungeons, drop-in co-op, and a pixel-art style. We have a playable vertical slice from a game jam and want to grow it into a real release. Artists and a sound designer especially welcome.',
+    numOfMembers: '5-10',
+    projectType: 'remote',
+    mentorRequest: 'open',
+    preferredMentor: 'Shipped game developer for production guidance',
+    requiredSkills: ['Unity', 'C#', 'Illustration', 'Graphic Design'],
+    tags: ['Development', 'Content & Media', 'Personal Idea'],
+    requiredRoles: 'Looking for a gameplay programmer, a pixel artist, and a sound designer.',
+    slug: 'pixelforge',
+    startMonthsAgo: 4,
+    endMonthsAhead: 8,
+    team: ['noah.fischer'],
+    milestones: [
+      {
+        title: 'Milestone 1: Core Loop',
+        active: true,
+        tasks: [
+          { name: 'Refactor dungeon generation', status: TaskStatus.IN_PROGRESS },
+          { name: 'Implement drop-in co-op netcode', status: TaskStatus.TODO },
+          { name: 'Design starter enemy roster', status: TaskStatus.TODO },
+        ],
+      },
+    ],
+  },
+  {
+    owner: 'aisha.khan',
+    title: 'Deployly — Student Project Hosting',
+    description:
+      'A simple platform that lets students deploy their class projects with one command and a free subdomain — no DevOps knowledge required. Think Heroku, but tuned for student budgets and demos. Backend and infra heavy.',
+    numOfMembers: '2-4',
+    projectType: 'remote',
+    mentorRequest: 'none',
+    preferredMentor: '',
+    requiredSkills: ['Docker', 'AWS', 'Node.js', 'Go', 'PostgreSQL'],
+    tags: ['Web App', 'Development', 'Startup Idea'],
+    requiredRoles: 'Need a backend/infra developer comfortable with containers and a frontend dev for the dashboard.',
+    slug: 'deployly',
+    startMonthsAgo: 1,
+    endMonthsAhead: 6,
+    team: ['jacob.smith', 'priya.nair'],
+    milestones: [
+      {
+        title: 'Milestone 1: Build Pipeline',
+        active: true,
+        tasks: [
+          { name: 'Design container build pipeline', status: TaskStatus.IN_PROGRESS },
+          { name: 'Implement subdomain routing', status: TaskStatus.TODO },
+        ],
+      },
+    ],
+  },
+  {
+    owner: 'sofia.ramirez',
+    title: 'Local Lens — Small Business Marketing Kit',
+    description:
+      'An all-in-one toolkit that helps local businesses run their own marketing: templated social posts, a simple SEO checklist, and an email starter pack. The strategy and content are designed — we need developers to turn it into a real web app.',
+    numOfMembers: '2-4',
+    projectType: 'hybrid',
+    mentorRequest: 'open',
+    preferredMentor: 'Marketing or small-business mentor',
+    requiredSkills: ['React', 'TypeScript', 'Node.js', 'SEO', 'Content Writing'],
+    tags: ['Web App', 'Business', 'Content & Media', 'Development'],
+    requiredRoles: 'Looking for a full-stack developer and a designer to build the template editor.',
+    slug: 'locallens',
+    startMonthsAgo: 2,
+    endMonthsAhead: 4,
+    team: ['ava.rossi', 'isabella.santos'],
+    milestones: [
+      {
+        title: 'Milestone 1: Template Editor',
+        active: true,
+        tasks: [
+          { name: 'Build social post template editor', status: TaskStatus.IN_PROGRESS },
+          { name: 'Create SEO checklist module', status: TaskStatus.TODO },
+        ],
+      },
+    ],
+  },
+  {
+    owner: 'hannah.muller',
+    title: 'CampusPulse — Event Discovery & Analytics',
+    description:
+      'A platform where student clubs post events and see real analytics on turnout and engagement. Built to replace the mess of group chats and posters. Data-heavy with a clean dashboard side.',
+    numOfMembers: '5-10',
+    projectType: 'hybrid',
+    mentorRequest: 'looking',
+    preferredMentor: 'Product analytics experience appreciated',
+    requiredSkills: ['React', 'Node.js', 'Data Analysis', 'PostgreSQL', 'TypeScript'],
+    tags: ['Web App', 'Community', 'Development', 'Science'],
+    requiredRoles: 'Need a frontend dev for the dashboard, a backend dev, and a data analyst for the metrics layer.',
+    slug: 'campuspulse',
+    startMonthsAgo: 3,
+    endMonthsAhead: 4,
+    team: ['grace.thompson', 'daniel.okafor'],
+    milestones: [
+      {
+        title: 'Milestone 1: Event Core',
+        active: true,
+        tasks: [
+          { name: 'Build event creation and RSVP flow', status: TaskStatus.DONE },
+          { name: 'Design analytics data model', status: TaskStatus.IN_PROGRESS },
+          { name: 'Build turnout dashboard', status: TaskStatus.TODO },
+        ],
+      },
+    ],
+  },
+  {
+    owner: 'omar.hassan',
+    title: 'DevQuest — Gamified Learning for Beginners',
+    description:
+      'An open-source platform that teaches web development through small, gamified quests. I’m building it partly as a teaching tool and partly to give students real open-source experience. Beginner-friendly contributors very welcome — that’s the whole point.',
+    numOfMembers: '10+',
+    projectType: 'remote',
+    mentorRequest: 'none',
+    preferredMentor: '',
+    requiredSkills: ['React', 'TypeScript', 'Node.js', 'PostgreSQL', 'UI Design'],
+    tags: ['Web App', 'Education Technology', 'Social Good', 'Development', 'Community'],
+    requiredRoles:
+      'Open to contributors at all levels — frontend, backend, content writers for the quests, and designers.',
+    slug: 'devquest',
+    startMonthsAgo: 5,
+    endMonthsAhead: 7,
+    team: ['grace.thompson', 'jacob.smith', 'maya.chen'],
+    milestones: [
+      {
+        title: 'Milestone 1: Quest Engine',
+        active: false,
+        tasks: [
+          { name: 'Build quest progression system', status: TaskStatus.DONE },
+          { name: 'Create code-challenge runner', status: TaskStatus.DONE },
+        ],
+      },
+      {
+        title: 'Milestone 2: Content & Community',
+        active: true,
+        tasks: [
+          { name: 'Write beginner HTML/CSS quest track', status: TaskStatus.IN_PROGRESS },
+          { name: 'Add contributor onboarding docs', status: TaskStatus.IN_PROGRESS },
+          { name: 'Build leaderboard', status: TaskStatus.TODO },
+        ],
+      },
+    ],
+  },
+  {
+    owner: 'isabella.santos',
+    title: 'Folio — Portfolio Builder for Creatives',
+    description:
+      'A portfolio builder made specifically for designers and other creatives — beautiful templates, easy image handling, and a custom domain. Design system is ready; we need developers to make it real.',
+    numOfMembers: '2-4',
+    projectType: 'remote',
+    mentorRequest: 'open',
+    preferredMentor: 'Design-minded engineer',
+    requiredSkills: ['React', 'TypeScript', 'CSS', 'UI Design', 'Figma'],
+    tags: ['Web App', 'Design', 'Development', 'Startup Idea'],
+    requiredRoles: 'Looking for two frontend developers who care about pixel-perfect, performant UI.',
+    slug: 'folio',
+    startMonthsAgo: 1,
+    endMonthsAhead: 4,
+    team: ['grace.thompson'],
+    milestones: [
+      {
+        title: 'Milestone 1: Template System',
+        active: true,
+        tasks: [
+          { name: 'Build template rendering engine', status: TaskStatus.IN_PROGRESS },
+          { name: 'Implement image upload and optimization', status: TaskStatus.TODO },
+        ],
+      },
+    ],
+  },
+  {
+    owner: DEMO,
+    title: 'TeamUp — Student Collaboration Platform',
+    description:
+      'The platform you’re looking at right now. A place for students to find projects, build teams, and actually ship together. Built with React, NestJS, and PostgreSQL. I’m looking for a couple of teammates to help push new features — recommendations, real-time chat, and richer profiles.',
+    numOfMembers: '2-4',
+    projectType: 'hybrid',
+    mentorRequest: 'looking',
+    preferredMentor: 'Full-stack engineer who has scaled a product',
+    requiredSkills: ['React', 'TypeScript', 'NestJS', 'PostgreSQL', 'UI Design'],
+    tags: ['Web App', 'Development', 'Design', 'Personal Idea'],
+    requiredRoles:
+      'Looking for a frontend developer to help build out the messaging UI and a backend developer interested in the recommendation engine.',
+    slug: 'teamup',
+    startMonthsAgo: 4,
+    endMonthsAhead: 6,
+    team: ['priya.nair', 'maya.chen'],
+    milestones: [
+      {
+        title: 'Milestone 1: Core Platform',
+        active: false,
+        tasks: [
+          { name: 'Build auth and profile system', status: TaskStatus.DONE },
+          { name: 'Implement project discovery feed', status: TaskStatus.DONE },
+          { name: 'Add applications and memberships', status: TaskStatus.DONE },
+        ],
+      },
+      {
+        title: 'Milestone 2: Recommendations & Chat',
+        active: true,
+        tasks: [
+          { name: 'Integrate AI recommendation engine', status: TaskStatus.IN_PROGRESS },
+          { name: 'Design real-time messaging UI', status: TaskStatus.TODO },
+          { name: 'Add notification system', status: TaskStatus.TODO },
+        ],
+      },
+    ],
+  },
+  {
+    owner: DEMO,
+    title: 'SnackMap — Campus Food Finder',
+    description:
+      'A small but genuinely useful web app: find what’s open on campus right now, see menus, and check how busy each spot is. Started as a weekend project and people keep asking for it, so I want to take it further. Easy, fun project to jump into.',
+    numOfMembers: '2-4',
+    projectType: 'remote',
+    mentorRequest: 'none',
+    preferredMentor: '',
+    requiredSkills: ['React', 'TypeScript', 'Node.js', 'CSS'],
+    tags: ['Web App', 'Community', 'Development', 'Personal Idea'],
+    requiredRoles: 'Looking for a frontend dev to help with the map view and a designer to give it some personality.',
+    slug: 'snackmap',
+    startMonthsAgo: 2,
+    endMonthsAhead: 2,
+    team: ['grace.thompson'],
+    milestones: [
+      {
+        title: 'Milestone 1: Map & Hours',
+        active: true,
+        tasks: [
+          { name: 'Build campus map with vendor pins', status: TaskStatus.IN_PROGRESS },
+          { name: 'Add open/closed hours logic', status: TaskStatus.DONE },
+          { name: 'Design vendor detail card', status: TaskStatus.TODO },
+        ],
+      },
+    ],
+  },
+];
+
+// Applications the demo user has SENT (shows up in "My Applications").
+const DEMO_SENT_APPLICATIONS: { project: string; status: ApplicationStatus; role: string }[] = [
+  { project: 'classconnect', status: ApplicationStatus.PENDING, role: 'Frontend Developer' },
+  { project: 'pitchdeck', status: ApplicationStatus.PENDING, role: 'Full-Stack Developer' },
+  { project: 'folio', status: ApplicationStatus.INVITED, role: ProjectRole.MEMBER },
+];
+
+// Applications OTHERS have sent to the demo user's projects (shows up as
+// "received applications" on the demo user's owned projects).
+const DEMO_RECEIVED_APPLICATIONS: { applicant: string; project: string; status: ApplicationStatus; role: string }[] = [
+  { applicant: 'grace.thompson', project: 'teamup', status: ApplicationStatus.PENDING, role: 'Frontend Developer' },
+  { applicant: 'jacob.smith', project: 'teamup', status: ApplicationStatus.PENDING, role: 'Backend Developer' },
+  { applicant: 'liam.walsh', project: 'snackmap', status: ApplicationStatus.PENDING, role: 'Frontend Developer' },
+];
+
+// Projects the demo user has bookmarked.
+const DEMO_BOOKMARKS = ['mindease', 'ecoroute', 'devquest', 'deployly', 'campuspulse'];
 
 async function bootstrap() {
   let app: INestApplicationContext | null = null;
@@ -108,9 +1002,7 @@ async function bootstrap() {
     if (!demoUserEmail) {
       throw new Error('DEMO_USER_EMAIL is not set. Add it to your .env file.');
     }
-    const DEMO_USER_EMAILS = [demoUserEmail];
 
-    // Get repositories
     const userRepository = app.get<Repository<User>>(getRepositoryToken(User));
     const profileRepository = app.get<Repository<UserProfile>>(getRepositoryToken(UserProfile));
     const skillRepository = app.get<Repository<Skill>>(getRepositoryToken(Skill));
@@ -124,11 +1016,9 @@ async function bootstrap() {
     const workExperienceRepository = app.get<Repository<WorkExperience>>(getRepositoryToken(WorkExperience));
     const portfolioProjectRepository = app.get<Repository<PortfolioProject>>(getRepositoryToken(PortfolioProject));
 
-    // --- IMPORTANT: Decide whether to clear data ---
-    // Clears related data but KEEPS Users and UserProfiles
-    console.log('Clearing non-user/profile data (bookmarks, applications, tasks, milestones, memberships, projects, skills, interests, work_exp, portfolio)...');
-    const deleteAll = (repo: Repository<any>) =>
-      repo.createQueryBuilder().delete().execute();
+    // --- Clear all generated data (keep the demo user's identity row) -------
+    console.log('Clearing generated data...');
+    const deleteAll = (repo: Repository<any>) => repo.createQueryBuilder().delete().execute();
     await deleteAll(bookmarkRepository);
     await deleteAll(applicationRepository);
     await deleteAll(taskRepository);
@@ -137,369 +1027,264 @@ async function bootstrap() {
     await deleteAll(projectRepository);
     await deleteAll(workExperienceRepository);
     await deleteAll(portfolioProjectRepository);
-    // Clear M2M join rows that reference skills/interests before deleting them,
-    // otherwise FK constraints from kept user profiles block the delete.
     await skillRepository.query('DELETE FROM "user_profile_skills"');
     await interestRepository.query('DELETE FROM "user_profile_interests"');
     await deleteAll(skillRepository);
     await deleteAll(interestRepository);
-    console.log('Non-user data cleared.');
-    // --- End Clearing Data ---
+    console.log('Cleared.');
 
-    // --- Seed Skills & Interests ---
-    console.log('Seeding Skills & Interests...');
-    let skillEntities: Skill[] = [];
-    for (const name of PREDEFINED_SKILLS) {
-      try {
-        const skill = skillRepository.create({ name, description: faker.lorem.sentence() });
-        skillEntities.push(await skillRepository.save(skill));
-      } catch (e: any) { if (e.code !== '23505') console.error(`Error saving skill ${name}:`, e); else console.warn(`Skipping duplicate skill: ${name}`) }
+    // --- Seed Skills & Interests, build name -> entity lookups -------------
+    const allSkillNames = Array.from(
+      new Set([
+        ...PERSONAS.flatMap(p => p.skills),
+        ...PROJECTS.flatMap(p => p.requiredSkills),
+        ...DEMO_PROFILE.skills,
+      ]),
+    );
+    const allInterestNames = Array.from(
+      new Set([...PERSONAS.flatMap(p => p.interests), ...DEMO_PROFILE.interests]),
+    );
+
+    const skillByName = new Map<string, Skill>();
+    for (const name of allSkillNames) {
+      const skill = await skillRepository.save(skillRepository.create({ name }));
+      skillByName.set(name, skill);
     }
-    console.log(`Seeded ${skillEntities.length} skills.`);
-
-    let interestEntities: Interest[] = [];
-    for (const name of PREDEFINED_INTERESTS) {
-      try {
-        const interest = interestRepository.create({ name, description: faker.lorem.sentence() });
-        interestEntities.push(await interestRepository.save(interest));
-      } catch (e: any) { if (e.code !== '23505') console.error(`Error saving interest ${name}:`, e); else console.warn(`Skipping duplicate interest: ${name}`) }
+    const interestByName = new Map<string, Interest>();
+    for (const name of allInterestNames) {
+      const interest = await interestRepository.save(interestRepository.create({ name }));
+      interestByName.set(name, interest);
     }
-    console.log(`Seeded ${interestEntities.length} interests.`);
-    // --- End Seed Skills & Interests ---
+    console.log(`Seeded ${skillByName.size} skills and ${interestByName.size} interests.`);
 
-    // --- Fetch Existing Demo Users ---
-    console.log('Fetching existing demo users by email...');
-    const demoUsers = await userRepository.find({
-      where: { email: In(DEMO_USER_EMAILS) },
-      relations: ['profile'], // Load profile relation
+    const skillsFor = (names: string[]) => names.map(n => skillByName.get(n)).filter((s): s is Skill => !!s);
+    const interestsFor = (names: string[]) =>
+      names.map(n => interestByName.get(n)).filter((i): i is Interest => !!i);
+
+    // username -> User (resolved as we create them); DEMO resolved below
+    const userByName = new Map<string, User>();
+
+    // --- The demo user: keep identity, enrich the profile -----------------
+    const demoUser = await userRepository.findOne({
+      where: { email: demoUserEmail },
+      relations: ['profile'],
     });
-
-    if (demoUsers.length !== DEMO_USER_EMAILS.length) {
-      const foundEmails = demoUsers.map(u => u.email);
-      const missingEmails = DEMO_USER_EMAILS.filter(e => !foundEmails.includes(e));
-      console.warn(`WARNING: Expected ${DEMO_USER_EMAILS.length} demo users, but found ${demoUsers.length}.`);
-      console.warn(`Missing or unconfirmed users: ${missingEmails.join(', ')}`);
-      if (demoUsers.length === 0) {
-        throw new Error("CRITICAL: No demo users found in the database. Please sign them up and confirm their emails first.");
-      }
-    } else {
-      console.log(`Found ${demoUsers.length} demo users.`);
-    }
-    // --- End Fetch Users ---
-
-    // --- Populate Profiles for Demo Users ---
-    console.log('Populating profiles for demo users...');
-    for (const user of demoUsers) {
-      if (!user.profile) {
-        console.warn(`User ${user.email} is missing a profile. Creating one.`);
-        // If somehow profile is missing, create it
-        user.profile = profileRepository.create({ userId: user.id });
-        await profileRepository.save(user.profile);
-        // Re-fetch user with profile to ensure consistency
-        const reloadedUser = await userRepository.findOne({ where: { id: user.id }, relations: ['profile'] });
-        if (!reloadedUser || !reloadedUser.profile) {
-          console.error(`Failed to create or reload profile for user ${user.email}. Skipping population.`);
-          continue;
-        }
-        user.profile = reloadedUser.profile; // Assign the newly created profile
-      }
-
-      // Update existing profile with fake data
-      user.profile.userType = user.profile.userType || getRandomElement(USER_TYPES);
-      user.profile.program = user.profile.program || getRandomElement(PROGRAMS);
-      user.profile.signupExperience = user.profile.signupExperience || faker.lorem.paragraph(2);
-      user.profile.status = faker.person.jobTitle();
-      user.profile.institution = 'SAIT';
-      user.profile.bio = faker.lorem.paragraph(faker.number.int({ min: 2, max: 4 }));
-      user.profile.avatarUrl = faker.image.avatarGitHub();
-      user.profile.bannerUrl = faker.image.urlPicsumPhotos({ width: 1000, height: 200 });
-      user.profile.skills = getRandomSubset(skillEntities, faker.number.int({ min: 3, max: 10 }));
-      user.profile.interests = getRandomSubset(interestEntities, faker.number.int({ min: 2, max: 6 }));
-
-      // Add Work Experiences
-      const workExperiences = Array.from({ length: faker.number.int({ min: 1, max: 3 }) }).map(exp =>
-        workExperienceRepository.create({
-          profileId: user.profile.id, // Set ID explicitly
-          dateRange: `${faker.date.past({ years: 5 }).getFullYear()} - ${faker.date.recent().getFullYear()}`,
-          workName: faker.company.name() + ' - ' + faker.person.jobTitle(),
-          description: faker.lorem.sentence(),
-        })
+    if (!demoUser) {
+      throw new Error(
+        `CRITICAL: Demo user "${demoUserEmail}" not found. Sign in once on the site to create the account, then re-run the seed.`,
       );
-      await workExperienceRepository.save(workExperiences);
-
-      // Add Portfolio Projects
-      const portfolioProjects = Array.from({ length: faker.number.int({ min: 1, max: 4 }) }).map(pp =>
+    }
+    if (!demoUser.profile) {
+      demoUser.profile = await profileRepository.save(profileRepository.create({ userId: demoUser.id }));
+    }
+    const dp = demoUser.profile;
+    dp.userType = DEMO_PROFILE.userType;
+    dp.program = DEMO_PROFILE.program;
+    dp.status = DEMO_PROFILE.status;
+    dp.institution = DEMO_PROFILE.institution;
+    dp.bio = DEMO_PROFILE.bio;
+    dp.signupExperience = DEMO_PROFILE.signupExperience;
+    dp.avatarUrl = avatar(DEMO_PROFILE.avatar);
+    dp.bannerUrl = banner('demo');
+    dp.skills = skillsFor(DEMO_PROFILE.skills);
+    dp.interests = interestsFor(DEMO_PROFILE.interests);
+    await profileRepository.save(dp);
+    await workExperienceRepository.save(
+      DEMO_PROFILE.work.map(w => workExperienceRepository.create({ ...w, profileId: dp.id })),
+    );
+    await portfolioProjectRepository.save(
+      DEMO_PROFILE.portfolio.map(pp =>
         portfolioProjectRepository.create({
-          profileId: user.profile.id, // Set ID explicitly
-          title: faker.commerce.productName() + ' Showcase',
-          description: faker.lorem.paragraph(faker.number.int({ min: 1, max: 3 })),
-          tags: getRandomSubset(PREDEFINED_SKILLS, 3),
-          imageUrl: faker.image.urlLoremFlickr({ category: 'technology,abstract,business' }),
-        })
+          profileId: dp.id,
+          title: pp.title,
+          description: pp.description,
+          tags: pp.tags,
+          imageUrl: cover(pp.slug),
+        }),
+      ),
+    );
+    userByName.set(DEMO, demoUser);
+    console.log(`Enriched demo user profile for ${demoUser.email}.`);
+
+    // --- Synthetic community members (find-or-create, then enrich) --------
+    console.log('Seeding community members...');
+    for (const persona of PERSONAS) {
+      const email = `${persona.username}@students.teamup.dev`;
+      let user = await userRepository.findOne({ where: { email }, relations: ['profile'] });
+      if (!user) {
+        user = userRepository.create({
+          cognitoSub: `seed-${persona.username}`,
+          email,
+          firstName: persona.firstName,
+          lastName: persona.lastName,
+          preferredUsername: persona.username,
+          profile: profileRepository.create({}),
+        });
+        user = await userRepository.save(user);
+        user = (await userRepository.findOne({ where: { id: user.id }, relations: ['profile'] }))!;
+      }
+      if (!user.profile) {
+        user.profile = await profileRepository.save(profileRepository.create({ userId: user.id }));
+      }
+
+      const p = user.profile;
+      p.userType = persona.userType;
+      p.program = persona.program;
+      p.status = persona.status;
+      p.institution = 'SAIT';
+      p.bio = persona.bio;
+      p.signupExperience = persona.bio;
+      p.avatarUrl = avatar(persona.avatar);
+      p.bannerUrl = banner(persona.username);
+      p.skills = skillsFor(persona.skills);
+      p.interests = interestsFor(persona.interests);
+      await profileRepository.save(p);
+
+      await workExperienceRepository.save(
+        persona.work.map(w => workExperienceRepository.create({ ...w, profileId: p.id })),
       );
-      await portfolioProjectRepository.save(portfolioProjects);
-
-      // Save the updated profile (this should update relations like skills/interests)
-      await profileRepository.save(user.profile);
-      console.log(`... populated profile for ${user.email}`);
+      await portfolioProjectRepository.save(
+        persona.portfolio.map(pp =>
+          portfolioProjectRepository.create({
+            profileId: p.id,
+            title: pp.title,
+            description: pp.description,
+            tags: pp.tags,
+            imageUrl: cover(pp.slug),
+          }),
+        ),
+      );
+      userByName.set(persona.username, user);
     }
-    console.log('Finished populating demo user profiles.');
-    // --- End Populate Profiles ---
+    console.log(`Seeded ${PERSONAS.length} community members.`);
 
-    // --- Seed Projects ---
-    console.log(`Seeding ${NUM_PROJECTS_TO_CREATE} Projects...`);
-    const projectEntities: Project[] = [];
-    if (demoUsers.length === 0) {
-      console.error("Cannot seed projects without users.");
-    } else {
-      for (let i = 0; i < NUM_PROJECTS_TO_CREATE; i++) {
-        const owner = getRandomElement(demoUsers);
-        const numMilestones = faker.number.int({ min: 1, max: MAX_MILESTONES_PER_PROJECT });
+    const resolveUser = (name: string): User => {
+      const u = userByName.get(name);
+      if (!u) throw new Error(`Unknown user reference in seed data: ${name}`);
+      return u;
+    };
 
-        // --- Interdisciplinary Skill & Tag Logic ---
-        let requiredSkills: string[] = [];
-        let tags: string[] = [];
-        const isInterdisciplinary = Math.random() < 0.7;
-        const isPersonalIdea = Math.random() < 0.4;
+    // --- Projects, milestones, tasks, memberships -------------------------
+    console.log('Seeding projects...');
+    const projectBySlug = new Map<string, Project>();
+    for (const sp of PROJECTS) {
+      const owner = resolveUser(sp.owner);
+      const startDate = monthsFromNow(-sp.startMonthsAgo);
+      const endDate = sp.endMonthsAhead === null ? undefined : monthsFromNow(sp.endMonthsAhead);
 
-        if (isInterdisciplinary) {
-          const numCategories = faker.number.int({ min: 2, max: 3 });
-          const selectedCategories = getRandomSubset(Object.keys(SKILL_CATEGORIES), numCategories);
-          requiredSkills = getSkillsFromCategories(selectedCategories, faker.number.int({ min: 3, max: 7 }));
-          selectedCategories.forEach(cat => {
-            if (cat === 'TECH' && !tags.includes('Development')) tags.push('Development');
-            if (cat === 'DESIGN' && !tags.includes('Design')) tags.push('Design');
-            if (cat === 'BUSINESS' && !tags.includes('Business')) tags.push('Business');
-            if (cat === 'MEDIA_SCIENCE' && !tags.includes('Science') && !tags.includes('Content & Media')) {
-              tags.push(Math.random() < 0.5 ? 'Science' : 'Content & Media');
-            }
-          });
-        } else {
-          let primaryCategory = 'TECH';
-          if (owner.profile?.program?.includes('Design')) primaryCategory = 'DESIGN';
-          else if (owner.profile?.program?.includes('Business') || owner.profile?.program?.includes('Marketing')) primaryCategory = 'BUSINESS';
-          else if (owner.profile?.program?.includes('Media')) primaryCategory = 'MEDIA_SCIENCE';
-          requiredSkills = getSkillsFromCategories([primaryCategory], faker.number.int({ min: 3, max: 7 }));
-          if (primaryCategory === 'TECH' && !tags.includes('Development')) tags.push('Development');
-          if (primaryCategory === 'DESIGN' && !tags.includes('Design')) tags.push('Design');
-          if (primaryCategory === 'BUSINESS' && !tags.includes('Business')) tags.push('Business');
-          if (primaryCategory === 'MEDIA_SCIENCE' && !tags.includes('Science') && !tags.includes('Content & Media')) {
-            tags.push(Math.random() < 0.5 ? 'Science' : 'Content & Media');
-          }
-        }
-        tags = [...new Set([...tags, ...getRandomSubset(PREDEFINED_TAGS.filter(t => !tags.includes(t) && t !== 'Personal Idea' && t !== 'Startup Idea'), 2)])];
-        if (isPersonalIdea) {
-          tags.push(getRandomElement(['Personal Idea', 'Startup Idea']));
-        }
-        // --- END Interdisciplinary Logic ---
+      const project = await projectRepository.save(
+        projectRepository.create({
+          ownerId: owner.id,
+          title: sp.title,
+          description: sp.description,
+          numOfMembers: sp.numOfMembers,
+          projectType: sp.projectType,
+          mentorRequest: sp.mentorRequest,
+          preferredMentor: sp.preferredMentor,
+          requiredSkills: sp.requiredSkills,
+          tags: sp.tags,
+          requiredRoles: sp.requiredRoles,
+          imageUrl: cover(sp.slug),
+          startDate,
+          endDate,
+        }),
+      );
+      projectBySlug.set(sp.slug, project);
 
-        // 1. Create Project entity data
-        const projectData = {
-          ownerId: owner.id, // Set owner ID
-          title: faker.company.catchPhrase() + (isPersonalIdea ? ' App' : ' Platform'),
-          description: faker.lorem.paragraphs(faker.number.int({ min: 2, max: 4 })),
-          numOfMembers: getRandomElement(NUM_MEMBERS_OPTIONS),
-          projectType: getRandomElement(PROJECT_TYPES),
-          mentorRequest: getRandomElement(MENTOR_REQUESTS.filter(r => r !== 'none')),
-          preferredMentor: faker.lorem.words(3),
-          requiredSkills: requiredSkills,
-          tags: tags,
-          requiredRoles: faker.lorem.sentence(faker.number.int({ min: 5, max: 15 })),
-          imageUrl: faker.image.urlPicsumPhotos({ width: 600, height: 400 }),
-          startDate: faker.date.past({ years: 1 }),
-          endDate: faker.datatype.boolean(0.7) ? faker.date.future({ years: 1 }) : undefined,
-        };
-
-        try {
-          // 2. Save the Project FIRST to get its ID
-          const savedProject = await projectRepository.save(projectRepository.create(projectData));
-          // console.log(`... Saved project ${i + 1} (ID: ${savedProject.id})`);
-
-          // 3. Add Owner Membership
-          const ownerMembership = membershipRepository.create({
-            projectId: savedProject.id, // Explicitly set ID
-            userId: owner.id, // Explicitly set ID
-            role: ProjectRole.OWNER,
-          });
-          await membershipRepository.save(ownerMembership);
-
-          // 4. Create and Save Milestones and Tasks
-          const createdMilestones: Milestone[] = [];
-          for (let j = 0; j < numMilestones; j++) {
-            const milestoneData = milestoneRepository.create({
-              projectId: savedProject.id, // **Set the projectId explicitly**
-              title: `Milestone ${j + 1}: ${faker.lorem.words(faker.number.int({ min: 2, max: 5 }))}`,
-              date: faker.date.between({ from: savedProject.startDate!, to: savedProject.endDate || faker.date.future({ years: 1 }) }),
-              active: j === 0,
-            });
-            const savedMilestone = await milestoneRepository.save(milestoneData);
-
-            const numTasks = faker.number.int({ min: 1, max: MAX_TASKS_PER_MILESTONE });
-            const createdTasks: Task[] = [];
-            for (let k = 0; k < numTasks; k++) {
-              const taskData = taskRepository.create({
-                milestoneId: savedMilestone.id, // **Set the milestoneId explicitly**
-                name: `Task ${k + 1}: ${faker.hacker.verb()} ${faker.hacker.noun()}`,
-                description: faker.lorem.sentence(),
-                status: getRandomElement(Object.values(TaskStatus)),
-              });
-              const savedTask = await taskRepository.save(taskData);
-              createdTasks.push(savedTask);
-            }
-            savedMilestone.tasks = createdTasks; // Add saved tasks to milestone object
-            createdMilestones.push(savedMilestone); // Add saved milestone
-          }
-
-          // Reload the project with all relations needed for subsequent steps
-          const fullyLoadedProject = await projectRepository.findOne({
-            where: { id: savedProject.id },
-            relations: ['owner', 'memberships', 'milestones', 'milestones.tasks'], // Load necessary relations
-          });
-
-          if (fullyLoadedProject) {
-            projectEntities.push(fullyLoadedProject);
-          } else {
-            console.warn(`Could not fully reload project ${savedProject.id}`);
-            // Fallback: manually add milestones/memberships to the savedProject object if needed
-            savedProject.milestones = createdMilestones;
-            savedProject.memberships = [ownerMembership];
-            projectEntities.push(savedProject);
-          }
-
-
-          if ((i + 1) % 5 === 0) console.log(`... seeded ${i + 1} projects fully`);
-
-        } catch (error) {
-          console.error(`Failed during seeding process for project ${i+1}:`, error);
-        }
+      // Owner membership
+      await membershipRepository.save(
+        membershipRepository.create({ projectId: project.id, userId: owner.id, role: ProjectRole.OWNER }),
+      );
+      // Team memberships
+      const teamUsers = sp.team.map(resolveUser);
+      for (const member of teamUsers) {
+        await membershipRepository.save(
+          membershipRepository.create({ projectId: project.id, userId: member.id, role: ProjectRole.MEMBER }),
+        );
       }
-    }
-    console.log(`Seeded ${projectEntities.length} projects.`);
-    // --- End Seed Projects ---
 
-
-    // --- Seed Memberships ---
-    console.log('Seeding Memberships...');
-    let membershipCount = 0;
-    for (const project of projectEntities) {
-      const potentialMembers = demoUsers.filter(u => u.id !== project.ownerId);
-      const membersToAdd = getRandomSubset(potentialMembers, MAX_MEMBERS_PER_PROJECT - 1);
-
-      for (const memberUser of membersToAdd) {
-        try {
-          // Check if membership already exists (paranoid check)
-          const exists = await membershipRepository.exist({ where: { projectId: project.id, userId: memberUser.id } });
-          if (exists) continue;
-
-          const membership = membershipRepository.create({
+      // Milestones + tasks; round-robin assign in-progress/done tasks to the team
+      const assignees = [owner, ...teamUsers];
+      let assignIdx = 0;
+      for (const m of sp.milestones) {
+        const milestone = await milestoneRepository.save(
+          milestoneRepository.create({
             projectId: project.id,
-            userId: memberUser.id,
-            role: ProjectRole.MEMBER,
-          });
-          await membershipRepository.save(membership);
-          membershipCount++;
-
-          // Assign some tasks within this project to this new member
-          const tasksToAssign = (project.milestones || [])
-            .flatMap(m => m.tasks || [])
-            .filter(t => !t.assigneeId && Math.random() < 0.2);
-
-          for(const task of tasksToAssign) {
-            // Fetch the task again to ensure it's managed by TypeORM before updating
-            const taskToUpdate = await taskRepository.findOneBy({ id: task.id });
-            if (taskToUpdate) {
-              taskToUpdate.assigneeId = memberUser.id; // Set only the ID
-              await taskRepository.save(taskToUpdate);
-            } else {
-              console.warn(`Task ${task.id} not found for assignment.`);
-            }
-          }
-
-        } catch (error: any) {
-          if (error.code === '23505') {
-            // console.warn(`Skipping duplicate membership: User ${memberUser.id} in Project ${project.id}`);
-          } else {
-            console.error(`Failed to save membership for User ${memberUser.id} in Project ${project.id}:`, error);
-          }
+            title: m.title,
+            date: monthsFromNow(Math.floor(Math.random() * 3) + 1),
+            active: m.active,
+          }),
+        );
+        for (const t of m.tasks) {
+          const assignee =
+            t.status === TaskStatus.TODO ? undefined : assignees[assignIdx++ % assignees.length];
+          await taskRepository.save(
+            taskRepository.create({
+              milestoneId: milestone.id,
+              name: t.name,
+              description: '',
+              status: t.status,
+              assigneeId: assignee?.id,
+            }),
+          );
         }
       }
     }
-    console.log(`Seeded ${membershipCount} additional memberships.`);
-    // --- End Seed Memberships ---
+    console.log(`Seeded ${PROJECTS.length} projects with milestones, tasks, and teams.`);
 
+    // --- Applications -----------------------------------------------------
+    console.log('Seeding applications...');
+    let appCount = 0;
+    const saveApplication = async (applicant: User, project: Project, status: ApplicationStatus, role: string) => {
+      await applicationRepository.save(
+        applicationRepository.create({
+          applicantId: applicant.id,
+          projectId: project.id,
+          status,
+          roleAppliedFor: role,
+        }),
+      );
+      appCount++;
+    };
 
-    // --- Seed Applications ---
-    console.log('Seeding Applications...');
-    let applicationCount = 0;
-    if (demoUsers.length > 0 && projectEntities.length > 0) {
-      for (const applicant of demoUsers) {
-        const projectsToApply = getRandomSubset(projectEntities, MAX_APPLICATIONS_PER_USER);
-        for (const project of projectsToApply) {
-          const isOwner = project.ownerId === applicant.id;
-          const isMember = await membershipRepository.exist({ where: { projectId: project.id, userId: applicant.id } });
-          const hasApplied = await applicationRepository.exist({ where: { projectId: project.id, applicantId: applicant.id } });
-
-          if (!isOwner && !isMember && !hasApplied) {
-            const status = Math.random() < 0.3 ? ApplicationStatus.INVITED : ApplicationStatus.PENDING;
-            const application = applicationRepository.create({
-              applicantId: applicant.id,
-              projectId: project.id,
-              status: status,
-              roleAppliedFor: status === ApplicationStatus.PENDING ? faker.person.jobTitle() : ProjectRole.MEMBER,
-            });
-            try {
-              await applicationRepository.save(application);
-              applicationCount++;
-            } catch (error: any) {
-              if (error.code === '23505') {
-                // console.warn(`Skipping duplicate application: User ${applicant.id} for Project ${project.id}`);
-              } else {
-                console.error(`Failed to save application for User ${applicant.id} in Project ${project.id}:`, error);
-              }
-            }
-          }
-        }
-      }
+    for (const a of DEMO_SENT_APPLICATIONS) {
+      await saveApplication(demoUser, projectBySlug.get(a.project)!, a.status, a.role);
     }
-    console.log(`Seeded ${applicationCount} applications.`);
-    // --- End Seed Applications ---
+    for (const a of DEMO_RECEIVED_APPLICATIONS) {
+      await saveApplication(resolveUser(a.applicant), projectBySlug.get(a.project)!, a.status, a.role);
+    }
+    // A few pending applications between community members so non-demo projects
+    // also show inbound interest.
+    const extraApps: { applicant: string; slug: string; role: string }[] = [
+      { applicant: 'jacob.smith', slug: 'ecoroute', role: 'Backend Developer' },
+      { applicant: 'grace.thompson', slug: 'mindease', role: 'Frontend Developer' },
+      { applicant: 'noah.fischer', slug: 'locallens', role: 'Video Editor' },
+      { applicant: 'isabella.santos', slug: 'classconnect', role: 'UX Designer' },
+      { applicant: 'liam.walsh', slug: 'pixelforge', role: 'Gameplay Programmer' },
+    ];
+    for (const e of extraApps) {
+      const applicant = resolveUser(e.applicant);
+      const project = projectBySlug.get(e.slug)!;
+      if (project.ownerId === applicant.id) continue;
+      await saveApplication(applicant, project, ApplicationStatus.PENDING, e.role);
+    }
+    console.log(`Seeded ${appCount} applications.`);
 
-
-    // --- Seed Bookmarks ---
-    console.log('Seeding Bookmarks...');
+    // --- Bookmarks --------------------------------------------------------
+    console.log('Seeding bookmarks...');
     let bookmarkCount = 0;
-    if (demoUsers.length > 0 && projectEntities.length > 0) {
-      for (const user of demoUsers) {
-        const projectsToBookmark = getRandomSubset(projectEntities, MAX_BOOKMARKS_PER_USER);
-        for (const project of projectsToBookmark) {
-          const hasBookmarked = await bookmarkRepository.exist({ where: { projectId: project.id, userId: user.id } });
-          if(hasBookmarked) continue;
-
-          const bookmark = bookmarkRepository.create({
-            userId: user.id,
-            projectId: project.id,
-          });
-          try {
-            await bookmarkRepository.save(bookmark);
-            bookmarkCount++;
-          } catch (error: any) {
-            if (error.code === '23505') {
-              // console.warn(`Skipping duplicate bookmark: User ${user.id} for Project ${project.id}`);
-            } else {
-              console.error(`Failed to save bookmark for User ${user.id} in Project ${project.id}:`, error);
-            }
-          }
-        }
-      }
+    for (const slug of DEMO_BOOKMARKS) {
+      const project = projectBySlug.get(slug);
+      if (!project) continue;
+      await bookmarkRepository.save(bookmarkRepository.create({ userId: demoUser.id, projectId: project.id }));
+      bookmarkCount++;
     }
     console.log(`Seeded ${bookmarkCount} bookmarks.`);
-    // --- End Seed Bookmarks ---
 
     console.log('Database seeding completed successfully!');
-
   } catch (error) {
     console.error('Database seeding failed:', error);
-    process.exit(1); // Exit with error code if seeding fails critically
+    process.exit(1);
   } finally {
     if (app) {
       await app.close();
@@ -508,5 +1293,4 @@ async function bootstrap() {
   }
 }
 
-// Run the seeding function
 bootstrap();
