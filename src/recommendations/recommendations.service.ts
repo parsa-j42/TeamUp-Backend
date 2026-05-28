@@ -132,7 +132,7 @@ export class RecommendationsService {
       this.logger.log(`Sending request to Gemini for user ${user.id}...`);
       // Pass config and safety settings during model initialization
       const model = this.genAI.getGenerativeModel({
-        model: "gemini-1.5-flash-latest",
+        model: "gemini-3.5-flash",
         generationConfig: this.generationConfig,
         safetySettings: this.safetySettings,
       });
