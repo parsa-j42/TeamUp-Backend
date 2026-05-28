@@ -137,6 +137,10 @@ async function bootstrap() {
     await deleteAll(projectRepository);
     await deleteAll(workExperienceRepository);
     await deleteAll(portfolioProjectRepository);
+    // Clear M2M join rows that reference skills/interests before deleting them,
+    // otherwise FK constraints from kept user profiles block the delete.
+    await skillRepository.query('DELETE FROM "user_profile_skills"');
+    await interestRepository.query('DELETE FROM "user_profile_interests"');
     await deleteAll(skillRepository);
     await deleteAll(interestRepository);
     console.log('Non-user data cleared.');
