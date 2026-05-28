@@ -1,0 +1,43 @@
+name: Daily seed reset
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # 6am UTC - overnight reset (2am EDT)
+  workflow_dispatch: # allow manual trigger from the GitHub UI
+
+jobs:
+  seed:
+    name: Reset demo data
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Run seed
+        # NODE_ENV=development so TypeORM synchronize=true runs first,
+        # ensuring the schema exists before any inserts. Safe because the
+        # schema is stable and this runner is ephemeral.
+        run: yarn seed
+        env:
+          NODE_ENV: development
+          PORT: 3000
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_DATABASE: ${{ secrets.DB_DATABASE }}
+          DB_SSL: 'true'
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
+          COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DEMO_USER_EMAIL: ${{ secrets.DEMO_USER_EMAIL }}
+          CORS_ORIGIN: 'https://teamup.parsaj.dev'
