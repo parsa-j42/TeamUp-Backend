@@ -127,16 +127,16 @@ async function bootstrap() {
     // --- IMPORTANT: Decide whether to clear data ---
     // Clears related data but KEEPS Users and UserProfiles
     console.log('Clearing non-user/profile data (bookmarks, applications, tasks, milestones, memberships, projects, skills, interests, work_exp, portfolio)...');
-    await bookmarkRepository.delete({});
-    await applicationRepository.delete({});
-    await taskRepository.delete({});
-    await milestoneRepository.delete({});
-    await membershipRepository.delete({});
-    await projectRepository.delete({});
-    await workExperienceRepository.delete({}); // Clear related profile data too
-    await portfolioProjectRepository.delete({}); // Clear related profile data too
-    await skillRepository.delete({});
-    await interestRepository.delete({});
+    await bookmarkRepository.clear();
+    await applicationRepository.clear();
+    await taskRepository.clear();
+    await milestoneRepository.clear();
+    await membershipRepository.clear();
+    await projectRepository.clear();
+    await workExperienceRepository.clear();
+    await portfolioProjectRepository.clear();
+    await skillRepository.clear();
+    await interestRepository.clear();
     console.log('Non-user data cleared.');
     // --- End Clearing Data ---
 
