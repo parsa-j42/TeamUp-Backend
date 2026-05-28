@@ -1,9 +1,10 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm'; // Import In operator
+import { In, Repository } from 'typeorm';
 import { faker } from '@faker-js/faker';
 import { INestApplicationContext } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 // Import ALL your entities here
 import { User } from '@users/user.entity';
@@ -23,19 +24,6 @@ import { ProjectRole } from '@common/enums/project-role.enum';
 import { TaskStatus } from '@common/enums/task-status.enum';
 
 // --- Configuration ---
-// Emails of the users you MANUALLY signed up via the frontend AND CONFIRMED
-const DEMO_USER_EMAILS = [
-  "parsajfri42@gmail.com", // Replace with your actual confirmed demo emails
-  "parsajfri42.spam@gmail.com",
-  "parsajfri421@gmail.com",
-  "minekhorteam@gmail.com",
-  "yyctehrantv@gmail.com",
-  "besixot628@f5url.com",
-  "getabib149@cxnlab.com",
-  "yafob44799@cxnlab.com",
-  "niwimol307@f5url.com",
-  // Add more if you created more
-];
 
 const NUM_PROJECTS_TO_CREATE = 40; // Create projects owned by the demo users
 const MAX_MEMBERS_PER_PROJECT = 6;
@@ -114,6 +102,13 @@ async function bootstrap() {
     app = await NestFactory.createApplicationContext(AppModule);
     await app.init();
     console.log('NestJS context initialized.');
+
+    const configService = app.get(ConfigService);
+    const demoUserEmail = configService.get<string>('DEMO_USER_EMAIL');
+    if (!demoUserEmail) {
+      throw new Error('DEMO_USER_EMAIL is not set. Add it to your .env file.');
+    }
+    const DEMO_USER_EMAILS = [demoUserEmail];
 
     // Get repositories
     const userRepository = app.get<Repository<User>>(getRepositoryToken(User));
