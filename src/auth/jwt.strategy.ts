@@ -87,6 +87,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    */
   async validate(payload: {
     sub?: string;
+    email?: string;
+    given_name?: string;
+    family_name?: string;
+    preferred_username?: string;
     [key: string]: unknown;
   }): Promise<User> {
     this.logger.verbose(`Validating JWT payload for sub: ${payload.sub}`);
@@ -98,23 +102,22 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Invalid token payload (missing sub).');
     }
 
-    // Optional: Check token_use claim if needed (e.g., ensure it's an 'id' token or 'access' token)
-    // const tokenUse = payload.token_use as string | undefined;
-    // if (tokenUse !== 'id' && tokenUse !== 'access') { // Adjust based on which token frontend sends
-    //     this.logger.warn(`Invalid token_use claim: ${tokenUse}`);
-    //     throw new UnauthorizedException('Invalid token use.');
-    // }
-
     // Find the users in your database using the cognitoSub
-    const user = await this.userService.findByCognitoSub(cognitoSub);
+    let user = await this.userService.findByCognitoSub(cognitoSub);
 
     if (!user) {
-      // If users not found in DB, but token is valid, it might indicate a sync issue
-      // or the users was deleted after the token was issued.
-      this.logger.warn(
-        `User with cognitoSub ${cognitoSub} not found in DB, denying access.`,
+      // Token is valid but no DB row exists yet (first authenticated request
+      // after Cognito sign-up). Provision the user from the ID token claims.
+      this.logger.log(
+        `No DB user for cognitoSub ${cognitoSub}; provisioning from token claims.`,
       );
-      throw new UnauthorizedException('User associated with token not found.');
+      user = await this.userService.createOrUpdateFromCognito({
+        cognitoSub,
+        email: payload.email ?? '',
+        firstName: payload.given_name ?? '',
+        lastName: payload.family_name ?? '',
+        preferredUsername: payload.preferred_username ?? '',
+      });
     }
 
     this.logger.verbose(`JWT validation successful for user ID: ${user.id}`);
