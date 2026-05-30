@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsString, IsUUID, IsNotEmpty } from 'class-validator';
+import { IsEmail, IsString, IsUUID, IsNotEmpty, IsOptional } from 'class-validator';
 import { UserProfileDto } from '@profiles/dto/profile.dto';
 
 export class UserDto {
@@ -23,9 +23,10 @@ export class UserDto {
   @IsString()
   lastName: string;
 
-  @ApiProperty({ description: 'Preferred Name' })
+  @ApiPropertyOptional({ description: 'Preferred Name' })
+  @IsOptional()
   @IsString()
-  preferredUsername: string;
+  preferredUsername?: string;
 
   @ApiPropertyOptional({
     type: () => UserProfileDto,
@@ -61,10 +62,10 @@ export class CreateOrUpdateUserDto {
   @IsNotEmpty()
   lastName: string;
 
-  @ApiProperty({ description: 'Preferred Name' })
+  @ApiPropertyOptional({ description: 'Preferred Name' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  preferredUsername: string;
+  preferredUsername?: string;
 }
 
 // Simple DTO for listing all users or embedding user info
@@ -82,7 +83,8 @@ export class SimpleUserDto {
   @IsString()
   lastName: string;
 
-  @ApiProperty({ description: 'Preferred Name' })
+  @ApiPropertyOptional({ description: 'Preferred Name' })
+  @IsOptional()
   @IsString()
-  preferredUsername: string;
+  preferredUsername?: string;
 }

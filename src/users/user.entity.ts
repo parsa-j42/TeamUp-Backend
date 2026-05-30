@@ -34,8 +34,8 @@ export class User {
   @Column()
   lastName: string;
 
-  @Column()
-  preferredUsername: string; // From signup step 0
+  @Column({ nullable: true })
+  preferredUsername?: string; // Optional preferred name shown instead of first/last
 
   // Establish the relationship: One User has One Profile
   // 'users' here refers to the 'users' property back in UserProfile

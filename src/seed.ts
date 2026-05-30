@@ -1117,7 +1117,6 @@ async function bootstrap() {
           email,
           firstName: persona.firstName,
           lastName: persona.lastName,
-          preferredUsername: persona.username,
           profile: profileRepository.create({}),
         });
         user = await userRepository.save(user);
