@@ -162,7 +162,7 @@ export class RecommendationsService {
       // 6. Parse Gemini Response
       let geminiRecs: GeminiRecommendation[] = [];
       try {
-        geminiRecs = JSON.parse(responseText);
+        geminiRecs = JSON.parse(this.extractJsonArray(responseText));
         if (!Array.isArray(geminiRecs)) {
           throw new Error("Gemini response is not a JSON array.");
         }
@@ -217,5 +217,19 @@ export class RecommendationsService {
       this.logger.error(`Gemini API call failed for user ${user.id}: ${error.message}`, error.stack);
       return [];
     }
+  }
+
+  // Gemma 4 thinks out loud and the SDK hands back that reasoning alongside
+  // the JSON answer, so pull the array out of the surrounding prose (and any
+  // markdown fences) before parsing.
+  private extractJsonArray(text: string): string {
+    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const candidate = fenced ? fenced[1] : text;
+    const start = candidate.indexOf('[');
+    const end = candidate.lastIndexOf(']');
+    if (start === -1 || end === -1 || end < start) {
+      return candidate.trim();
+    }
+    return candidate.slice(start, end + 1);
   }
 }
