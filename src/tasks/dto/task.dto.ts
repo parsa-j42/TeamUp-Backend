@@ -2,7 +2,6 @@ import {
   ApiProperty,
   ApiPropertyOptional,
   PartialType,
-  OmitType,
 } from '@nestjs/swagger';
 import {
   IsString,
@@ -13,7 +12,7 @@ import {
   MaxLength,
 } from 'class-validator';
 import { TaskStatus } from '@common/enums/task-status.enum';
-import { UserDto } from '@users/dto/user.dto';
+import { EmbeddedUserDto } from '@users/dto/user.dto';
 import { Type } from 'class-transformer';
 
 // Base DTO for common fields
@@ -90,11 +89,11 @@ export class TaskDto extends BaseTaskDto {
   // Include simplified assignee details
   @ApiPropertyOptional({
     description: 'Assignee Details',
-    type: () => OmitType(UserDto, ['cognitoSub', 'profile'] as const),
+    type: () => EmbeddedUserDto,
     nullable: true,
   })
-  @Type(() => OmitType(UserDto, ['cognitoSub', 'profile'] as const))
-  assignee?: Omit<UserDto, 'cognitoSub' | 'profile'> | null;
+  @Type(() => EmbeddedUserDto)
+  assignee?: EmbeddedUserDto | null;
 
   @ApiProperty({ description: 'Creation Timestamp' })
   createdAt: Date;

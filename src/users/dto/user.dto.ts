@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
 import { IsEmail, IsString, IsUUID, IsNotEmpty, IsOptional } from 'class-validator';
 import { UserProfileDto } from '@profiles/dto/profile.dto';
 
@@ -39,6 +39,24 @@ export class UserDto {
 
   @ApiProperty({ description: 'Last Update Timestamp' })
   updatedAt: Date;
+}
+
+// User fields embedded in project responses (owners, members, assignees).
+// Drops auth/relation fields but carries the few profile bits needed to
+// render avatars and short bios without a separate profile fetch.
+export class EmbeddedUserDto extends OmitType(UserDto, [
+  'cognitoSub',
+  'profile',
+] as const) {
+  @ApiPropertyOptional({ description: 'URL for avatar image' })
+  @IsOptional()
+  @IsString()
+  avatarUrl?: string;
+
+  @ApiPropertyOptional({ description: 'User biography' })
+  @IsOptional()
+  @IsString()
+  bio?: string;
 }
 
 // DTO used potentially by a sync process (e.g., Cognito Trigger)

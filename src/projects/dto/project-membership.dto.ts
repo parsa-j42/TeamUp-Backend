@@ -1,7 +1,7 @@
-import { ApiProperty, OmitType } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import { IsUUID, IsEnum, IsNotEmpty } from 'class-validator';
 import { ProjectRole } from '@common/enums/project-role.enum';
-import { UserDto } from '@users/dto/user.dto';
+import { EmbeddedUserDto } from '@users/dto/user.dto';
 import { Type } from 'class-transformer';
 
 // DTO for adding a member to a project
@@ -53,10 +53,10 @@ export class ProjectMemberDto {
 
   @ApiProperty({
     description: 'Member Details',
-    type: () => OmitType(UserDto, ['cognitoSub', 'profile'] as const),
+    type: () => EmbeddedUserDto,
   })
-  @Type(() => OmitType(UserDto, ['cognitoSub', 'profile'] as const))
-  user: Omit<UserDto, 'cognitoSub' | 'profile'>; // Embed simplified UserDto
+  @Type(() => EmbeddedUserDto)
+  user: EmbeddedUserDto; // Embed simplified UserDto
 
   @ApiProperty({ description: 'Timestamp when member joined' })
   joinedAt: Date;

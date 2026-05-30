@@ -2,7 +2,6 @@ import {
   ApiProperty,
   ApiPropertyOptional,
   PartialType,
-  OmitType,
 } from '@nestjs/swagger';
 import {
   IsString,
@@ -15,7 +14,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { UserDto } from '@users/dto/user.dto';
+import { EmbeddedUserDto } from '@users/dto/user.dto';
 import { ProjectMemberDto } from './project-membership.dto';
 import { MilestoneDto } from '@milestones/dto/milestone.dto';
 
@@ -122,11 +121,11 @@ export class ProjectDto extends BaseProjectDto {
   @ApiProperty({ description: 'Project ID (UUID)' }) @IsUUID() id: string;
   @ApiProperty({
     description: 'Project Owner Details',
-    type: () => OmitType(UserDto, ['cognitoSub', 'profile'] as const),
+    type: () => EmbeddedUserDto,
   })
   @ValidateNested()
-  @Type(() => OmitType(UserDto, ['cognitoSub', 'profile'] as const))
-  owner: Omit<UserDto, 'cognitoSub' | 'profile'>;
+  @Type(() => EmbeddedUserDto)
+  owner: EmbeddedUserDto;
   @ApiProperty({
     description: 'List of project members and their roles',
     type: [ProjectMemberDto],

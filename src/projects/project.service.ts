@@ -23,7 +23,7 @@ import {
 import { User } from '@users/user.entity';
 import { ProjectRole } from '@common/enums/project-role.enum';
 import { UserService } from '@users/user.service';
-import { UserDto } from '@users/dto/user.dto'; // For mapping
+import { EmbeddedUserDto } from '@users/dto/user.dto'; // For mapping
 import { Milestone } from '@milestones/milestone.entity'; // For mapping
 import { Task } from '@tasks/task.entity'; // For mapping
 import { MilestoneDto } from '@milestones/dto/milestone.dto'; // For mapping
@@ -45,8 +45,10 @@ export class ProjectService {
   // Default relations to load for a full ProjectDto response
   private defaultProjectRelations = [
     'owner',
+    'owner.profile', // Avatar/bio for the owner card
     'memberships',
     'memberships.user',
+    'memberships.user.profile', // Avatar/bio for member cards
     'milestones',
     'milestones.tasks', // Load tasks within milestones
     'milestones.tasks.assignee', // Load assignee for tasks
@@ -490,18 +492,19 @@ export class ProjectService {
 
   // --- DTO Mapping Helpers ---
   mapProjectToDto(project: Project): ProjectDto {
-    const ownerDto: Omit<UserDto, 'cognitoSub' | 'profile'> | null =
-      project.owner
-        ? {
+    const ownerDto: EmbeddedUserDto | null = project.owner
+      ? {
           id: project.owner.id,
           email: project.owner.email,
           firstName: project.owner.firstName,
           lastName: project.owner.lastName,
           preferredUsername: project.owner.preferredUsername,
+          avatarUrl: project.owner.profile?.avatarUrl,
+          bio: project.owner.profile?.bio,
           createdAt: project.owner.createdAt,
           updatedAt: project.owner.updatedAt,
         }
-        : null;
+      : null;
 
     const membersDto: ProjectMemberDto[] =
       project.memberships?.map((m) => this.mapMembershipToDto(m)) || [];
@@ -531,18 +534,19 @@ export class ProjectService {
   }
 
   mapMembershipToDto(membership: ProjectMembership): ProjectMemberDto {
-    const userDto: Omit<UserDto, 'cognitoSub' | 'profile'> | null =
-      membership.user
-        ? {
+    const userDto: EmbeddedUserDto | null = membership.user
+      ? {
           id: membership.user.id,
           email: membership.user.email,
           firstName: membership.user.firstName,
           lastName: membership.user.lastName,
           preferredUsername: membership.user.preferredUsername,
+          avatarUrl: membership.user.profile?.avatarUrl,
+          bio: membership.user.profile?.bio,
           createdAt: membership.user.createdAt,
           updatedAt: membership.user.updatedAt,
         }
-        : null;
+      : null;
 
     return {
       id: membership.id,
@@ -567,9 +571,8 @@ export class ProjectService {
   }
 
   mapTaskToDto(task: Task): TaskDto {
-    const assigneeDto: Omit<UserDto, 'cognitoSub' | 'profile'> | null =
-      task.assignee
-        ? {
+    const assigneeDto: EmbeddedUserDto | null = task.assignee
+      ? {
           id: task.assignee.id,
           email: task.assignee.email,
           firstName: task.assignee.firstName,
@@ -578,7 +581,7 @@ export class ProjectService {
           createdAt: task.assignee.createdAt,
           updatedAt: task.assignee.updatedAt,
         }
-        : null;
+      : null;
     return {
       id: task.id,
       milestoneId: task.milestoneId,
