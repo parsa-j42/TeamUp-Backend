@@ -41,9 +41,13 @@ export class RecommendationsService {
       temperature: 0.3,
       topK: 1,
       topP: 1,
-      maxOutputTokens: 2048,
+      maxOutputTokens: 8192,
       responseMimeType: "application/json",
-    };
+      // gemini-3.x flash is a "thinking" model; reasoning tokens count against
+      // maxOutputTokens and were truncating the JSON. Disable thinking for this
+      // deterministic extraction task.
+      thinkingConfig: { thinkingBudget: 0 },
+    } as GenerationConfig;
     this.safetySettings = [
       { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
       { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },

@@ -22,7 +22,7 @@ import { ProjectRole } from '@common/enums/project-role.enum';
 import { TaskStatus } from '@common/enums/task-status.enum';
 
 // ===========================================================================
-// Curated demo dataset for TeamUp — a SAIT student collaboration platform.
+// Curated demo dataset for TeamUp - a SAIT student collaboration platform.
 // Everything here is hand-written so the live demo reads as a real community:
 // coherent people, believable projects, sensible milestones/tasks, and a
 // demo user wired into the network (owns projects, is a member, has sent and
@@ -75,7 +75,7 @@ const DEMO_PROFILE = {
   institution: 'SAIT',
   bio: "Third-year Software Development student who loves turning rough ideas into shipped products. Most at home in a React + NestJS codebase, but I'll happily jump into Figma to keep the UX honest. Looking for ambitious teammates to build something worth showing off.",
   signupExperience:
-    "I've built a handful of full-stack side projects and interned on a small product team. Comfortable owning a feature end to end — schema, API, UI, and the polish in between.",
+    "I've built a handful of full-stack side projects and interned on a small product team. Comfortable owning a feature end to end - schema, API, UI, and the polish in between.",
   avatar: 12,
   skills: ['React', 'TypeScript', 'Node.js', 'NestJS', 'PostgreSQL', 'UI Design', 'Figma', 'Docker'],
   interests: ['Web Development', 'UI/UX Design', 'Entrepreneurship', 'Cloud Computing'],
@@ -95,14 +95,14 @@ const DEMO_PROFILE = {
   ],
   portfolio: [
     {
-      title: 'Ledgerly — Personal Finance Tracker',
+      title: 'Ledgerly - Personal Finance Tracker',
       description:
         'A budgeting app with envelope-style categories, recurring transactions, and a clean monthly overview. Built with React, NestJS, and PostgreSQL.',
       tags: ['React', 'NestJS', 'PostgreSQL'],
       slug: 'ledgerly',
     },
     {
-      title: 'Studyloop — Spaced-Repetition Flashcards',
+      title: 'Studyloop - Spaced-Repetition Flashcards',
       description:
         'A flashcard app with an SM-2 review scheduler and shareable decks. Focused on a fast, keyboard-driven study flow.',
       tags: ['TypeScript', 'React', 'UI Design'],
@@ -133,7 +133,7 @@ const PERSONAS: Persona[] = [
     ],
     portfolio: [
       {
-        title: 'Rooted — Plant Care Companion',
+        title: 'Rooted - Plant Care Companion',
         description: 'An app concept that reminds you when to water, repot, and fertilize, with a calm illustrated visual language.',
         tags: ['Figma', 'UI Design', 'Illustration'],
         slug: 'rooted',
@@ -147,7 +147,7 @@ const PERSONAS: Persona[] = [
     userType: 'Graduate',
     program: 'Data Science',
     status: 'ML Engineer · Data Science grad',
-    bio: 'I like the messy middle of data work — cleaning, framing the problem, and figuring out whether a model is actually helping anyone. Python by day, occasionally Go when things need to be fast.',
+    bio: 'I like the messy middle of data work - cleaning, framing the problem, and figuring out whether a model is actually helping anyone. Python by day, occasionally Go when things need to be fast.',
     avatar: 33,
     skills: ['Python', 'Machine Learning', 'Data Analysis', 'Go', 'AWS'],
     interests: ['Machine Learning', 'Data Science', 'Artificial Intelligence', 'Sustainability'],
@@ -160,7 +160,7 @@ const PERSONAS: Persona[] = [
     ],
     portfolio: [
       {
-        title: 'GridSense — Energy Demand Forecasting',
+        title: 'GridSense - Energy Demand Forecasting',
         description: 'A time-series model that predicts neighbourhood electricity demand to help plan load balancing.',
         tags: ['Python', 'Machine Learning', 'Data Analysis'],
         slug: 'gridsense',
@@ -187,7 +187,7 @@ const PERSONAS: Persona[] = [
     ],
     portfolio: [
       {
-        title: 'Launchpad — Student Startup Newsletter',
+        title: 'Launchpad - Student Startup Newsletter',
         description: 'Founded and grew a weekly newsletter covering Calgary student startups to 2,000+ subscribers.',
         tags: ['Content Writing', 'SEO', 'Marketing'],
         slug: 'launchpad',
@@ -214,7 +214,7 @@ const PERSONAS: Persona[] = [
     ],
     portfolio: [
       {
-        title: 'Summit — Hiking Trail Tracker',
+        title: 'Summit - Hiking Trail Tracker',
         description: 'An iOS app that logs hikes with offline maps and elevation profiles for the Canadian Rockies.',
         tags: ['Swift', 'iOS Development'],
         slug: 'summit',
@@ -241,7 +241,7 @@ const PERSONAS: Persona[] = [
     ],
     portfolio: [
       {
-        title: 'DeployKit — One-Command Infra Templates',
+        title: 'DeployKit - One-Command Infra Templates',
         description: 'Reusable Terraform + Docker templates that spin up a production-ready web stack in minutes.',
         tags: ['AWS', 'Docker'],
         slug: 'deploykit',
@@ -268,7 +268,7 @@ const PERSONAS: Persona[] = [
     ],
     portfolio: [
       {
-        title: 'Reel Stories — Startup Launch Films',
+        title: 'Reel Stories - Startup Launch Films',
         description: 'A collection of 60-second launch films made for early-stage Calgary founders.',
         tags: ['Video Editing', 'Photography'],
         slug: 'reelstories',
@@ -295,7 +295,7 @@ const PERSONAS: Persona[] = [
     ],
     portfolio: [
       {
-        title: 'OpenMenu — Restaurant API',
+        title: 'OpenMenu - Restaurant API',
         description: 'A public API and admin panel for restaurants to manage menus, hours, and online orders.',
         tags: ['Node.js', 'PostgreSQL', 'NestJS'],
         slug: 'openmenu',
@@ -309,7 +309,7 @@ const PERSONAS: Persona[] = [
     userType: 'Alumni',
     program: 'Business Administration',
     status: 'Founder · Business Strategy',
-    bio: 'SAIT alum and second-time founder. I spend my time on strategy, fundraising, and making sure the team is building the right thing. Mentor when I can — I got a lot of help early on.',
+    bio: 'SAIT alum and second-time founder. I spend my time on strategy, fundraising, and making sure the team is building the right thing. Mentor when I can - I got a lot of help early on.',
     avatar: 68,
     skills: ['Business Strategy', 'Financial Modeling', 'Market Research', 'Public Speaking', 'Project Management'],
     interests: ['Entrepreneurship', 'Finance', 'Sustainability'],
@@ -322,7 +322,7 @@ const PERSONAS: Persona[] = [
     ],
     portfolio: [
       {
-        title: 'Verde — Green Last-Mile Delivery',
+        title: 'Verde - Green Last-Mile Delivery',
         description: 'Business case and go-to-market plan for an electric-bike delivery network in dense urban cores.',
         tags: ['Business Strategy', 'Market Research'],
         slug: 'verde',
@@ -349,7 +349,7 @@ const PERSONAS: Persona[] = [
     ],
     portfolio: [
       {
-        title: 'ClassKit — Accessible Quiz Builder',
+        title: 'ClassKit - Accessible Quiz Builder',
         description: 'A tool that lets teachers build keyboard- and screen-reader-friendly quizzes in minutes.',
         tags: ['React', 'TypeScript', 'CSS'],
         slug: 'classkit',
@@ -376,7 +376,7 @@ const PERSONAS: Persona[] = [
     ],
     portfolio: [
       {
-        title: 'Lumen — Puzzle Platformer',
+        title: 'Lumen - Puzzle Platformer',
         description: 'A light-bending puzzle platformer built in Unity for a 72-hour game jam (top 5 finish).',
         tags: ['Unity', 'C#'],
         slug: 'lumen',
@@ -403,7 +403,7 @@ const PERSONAS: Persona[] = [
     ],
     portfolio: [
       {
-        title: 'PulseBoard — Clinic Analytics',
+        title: 'PulseBoard - Clinic Analytics',
         description: 'A dashboard that surfaces wait-time and capacity trends across a network of clinics.',
         tags: ['Data Analysis', 'Python'],
         slug: 'pulseboard',
@@ -462,7 +462,7 @@ const PERSONAS: Persona[] = [
     ],
     portfolio: [
       {
-        title: 'Hook — Short-Form Playbook',
+        title: 'Hook - Short-Form Playbook',
         description: 'A library of short-form video templates and hooks tuned for product launches.',
         tags: ['Social Media Marketing', 'Video Editing'],
         slug: 'hook',
@@ -489,7 +489,7 @@ const PERSONAS: Persona[] = [
     ],
     portfolio: [
       {
-        title: 'SafeKeys — Password Health Checker',
+        title: 'SafeKeys - Password Health Checker',
         description: 'A self-hosted tool that audits password strength and flags reused credentials across a vault.',
         tags: ['Python', 'Docker'],
         slug: 'safekeys',
@@ -516,7 +516,7 @@ const PERSONAS: Persona[] = [
     ],
     portfolio: [
       {
-        title: 'Identity Kit — Startup Branding',
+        title: 'Identity Kit - Startup Branding',
         description: 'A set of complete brand identities, each with logo, type, palette, and usage guidelines.',
         tags: ['Figma', 'Graphic Design', 'Illustration'],
         slug: 'identitykit',
@@ -546,9 +546,9 @@ interface SeedProject {
 const PROJECTS: SeedProject[] = [
   {
     owner: 'maya.chen',
-    title: 'MindEase — Student Wellness App',
+    title: 'MindEase - Student Wellness App',
     description:
-      'A mobile-first wellness app for students: mood check-ins, guided breathing, and a private journal. We want it to feel calm and genuinely helpful, not like another productivity tracker. Design direction is set — now we need to build it and validate it with real students on campus.',
+      'A mobile-first wellness app for students: mood check-ins, guided breathing, and a private journal. We want it to feel calm and genuinely helpful, not like another productivity tracker. Design direction is set - now we need to build it and validate it with real students on campus.',
     numOfMembers: '5-10',
     projectType: 'hybrid',
     mentorRequest: 'looking',
@@ -593,9 +593,9 @@ const PROJECTS: SeedProject[] = [
   },
   {
     owner: 'daniel.okafor',
-    title: 'EcoRoute — Carbon-Aware Trip Planner',
+    title: 'EcoRoute - Carbon-Aware Trip Planner',
     description:
-      'A web app that plans trips around Calgary and shows the carbon cost of each option — transit, bike, carpool, or drive. The model is working in a notebook; we need to wrap it in a real API and a frontend people would actually use. Great fit if you care about climate and clean data pipelines.',
+      'A web app that plans trips around Calgary and shows the carbon cost of each option - transit, bike, carpool, or drive. The model is working in a notebook; we need to wrap it in a real API and a frontend people would actually use. Great fit if you care about climate and clean data pipelines.',
     numOfMembers: '2-4',
     projectType: 'remote',
     mentorRequest: 'open',
@@ -630,9 +630,9 @@ const PROJECTS: SeedProject[] = [
   },
   {
     owner: 'ethan.brooks',
-    title: 'Pitchdeck — AI Pitch Practice Tool',
+    title: 'Pitchdeck - AI Pitch Practice Tool',
     description:
-      'A tool that lets founders rehearse their pitch and get instant feedback on pacing, filler words, and clarity. I’ve validated demand with a dozen founders and have the business side covered — I need a technical team to build the MVP. Equity-style collaboration for the right people.',
+      'A tool that lets founders rehearse their pitch and get instant feedback on pacing, filler words, and clarity. I’ve validated demand with a dozen founders and have the business side covered - I need a technical team to build the MVP. Equity-style collaboration for the right people.',
     numOfMembers: '2-4',
     projectType: 'hybrid',
     mentorRequest: 'none',
@@ -659,7 +659,7 @@ const PROJECTS: SeedProject[] = [
   },
   {
     owner: 'liam.walsh',
-    title: 'TrailMate — Offline Hiking Companion',
+    title: 'TrailMate - Offline Hiking Companion',
     description:
       'A cross-platform mobile app for hikers in the Rockies: offline trail maps, elevation, and a safety check-in that texts a contact if you don’t return on time. iOS prototype exists; we want to bring it to Android and harden the offline sync.',
     numOfMembers: '2-4',
@@ -695,7 +695,7 @@ const PROJECTS: SeedProject[] = [
   },
   {
     owner: 'grace.thompson',
-    title: 'ClassConnect — Peer Tutoring Platform',
+    title: 'ClassConnect - Peer Tutoring Platform',
     description:
       'A web platform that matches students who need help with peers who can teach it, scheduled around real timetables. Accessibility is a first-class requirement, not an afterthought. Looking for developers and a designer who care about inclusive products.',
     numOfMembers: '5-10',
@@ -732,7 +732,7 @@ const PROJECTS: SeedProject[] = [
   },
   {
     owner: 'marcus.lee',
-    title: 'Pixelforge — Co-op Roguelike',
+    title: 'Pixelforge - Co-op Roguelike',
     description:
       'A two-player co-op roguelike built in Unity. Procedurally generated dungeons, drop-in co-op, and a pixel-art style. We have a playable vertical slice from a game jam and want to grow it into a real release. Artists and a sound designer especially welcome.',
     numOfMembers: '5-10',
@@ -760,9 +760,9 @@ const PROJECTS: SeedProject[] = [
   },
   {
     owner: 'aisha.khan',
-    title: 'Deployly — Student Project Hosting',
+    title: 'Deployly - Student Project Hosting',
     description:
-      'A simple platform that lets students deploy their class projects with one command and a free subdomain — no DevOps knowledge required. Think Heroku, but tuned for student budgets and demos. Backend and infra heavy.',
+      'A simple platform that lets students deploy their class projects with one command and a free subdomain - no DevOps knowledge required. Think Heroku, but tuned for student budgets and demos. Backend and infra heavy.',
     numOfMembers: '2-4',
     projectType: 'remote',
     mentorRequest: 'none',
@@ -787,9 +787,9 @@ const PROJECTS: SeedProject[] = [
   },
   {
     owner: 'sofia.ramirez',
-    title: 'Local Lens — Small Business Marketing Kit',
+    title: 'Local Lens - Small Business Marketing Kit',
     description:
-      'An all-in-one toolkit that helps local businesses run their own marketing: templated social posts, a simple SEO checklist, and an email starter pack. The strategy and content are designed — we need developers to turn it into a real web app.',
+      'An all-in-one toolkit that helps local businesses run their own marketing: templated social posts, a simple SEO checklist, and an email starter pack. The strategy and content are designed - we need developers to turn it into a real web app.',
     numOfMembers: '2-4',
     projectType: 'hybrid',
     mentorRequest: 'open',
@@ -814,7 +814,7 @@ const PROJECTS: SeedProject[] = [
   },
   {
     owner: 'hannah.muller',
-    title: 'CampusPulse — Event Discovery & Analytics',
+    title: 'CampusPulse - Event Discovery & Analytics',
     description:
       'A platform where student clubs post events and see real analytics on turnout and engagement. Built to replace the mess of group chats and posters. Data-heavy with a clean dashboard side.',
     numOfMembers: '5-10',
@@ -842,9 +842,9 @@ const PROJECTS: SeedProject[] = [
   },
   {
     owner: 'omar.hassan',
-    title: 'DevQuest — Gamified Learning for Beginners',
+    title: 'DevQuest - Gamified Learning for Beginners',
     description:
-      'An open-source platform that teaches web development through small, gamified quests. I’m building it partly as a teaching tool and partly to give students real open-source experience. Beginner-friendly contributors very welcome — that’s the whole point.',
+      'An open-source platform that teaches web development through small, gamified quests. I’m building it partly as a teaching tool and partly to give students real open-source experience. Beginner-friendly contributors very welcome - that’s the whole point.',
     numOfMembers: '10+',
     projectType: 'remote',
     mentorRequest: 'none',
@@ -852,7 +852,7 @@ const PROJECTS: SeedProject[] = [
     requiredSkills: ['React', 'TypeScript', 'Node.js', 'PostgreSQL', 'UI Design'],
     tags: ['Web App', 'Education Technology', 'Social Good', 'Development', 'Community'],
     requiredRoles:
-      'Open to contributors at all levels — frontend, backend, content writers for the quests, and designers.',
+      'Open to contributors at all levels - frontend, backend, content writers for the quests, and designers.',
     slug: 'devquest',
     startMonthsAgo: 5,
     endMonthsAhead: 7,
@@ -879,9 +879,9 @@ const PROJECTS: SeedProject[] = [
   },
   {
     owner: 'isabella.santos',
-    title: 'Folio — Portfolio Builder for Creatives',
+    title: 'Folio - Portfolio Builder for Creatives',
     description:
-      'A portfolio builder made specifically for designers and other creatives — beautiful templates, easy image handling, and a custom domain. Design system is ready; we need developers to make it real.',
+      'A portfolio builder made specifically for designers and other creatives - beautiful templates, easy image handling, and a custom domain. Design system is ready; we need developers to make it real.',
     numOfMembers: '2-4',
     projectType: 'remote',
     mentorRequest: 'open',
@@ -906,9 +906,9 @@ const PROJECTS: SeedProject[] = [
   },
   {
     owner: DEMO,
-    title: 'TeamUp — Student Collaboration Platform',
+    title: 'TeamUp - Student Collaboration Platform',
     description:
-      'The platform you’re looking at right now. A place for students to find projects, build teams, and actually ship together. Built with React, NestJS, and PostgreSQL. I’m looking for a couple of teammates to help push new features — recommendations, real-time chat, and richer profiles.',
+      'The platform you’re looking at right now. A place for students to find projects, build teams, and actually ship together. Built with React, NestJS, and PostgreSQL. I’m looking for a couple of teammates to help push new features - recommendations, real-time chat, and richer profiles.',
     numOfMembers: '2-4',
     projectType: 'hybrid',
     mentorRequest: 'looking',
@@ -944,7 +944,7 @@ const PROJECTS: SeedProject[] = [
   },
   {
     owner: DEMO,
-    title: 'SnackMap — Campus Food Finder',
+    title: 'SnackMap - Campus Food Finder',
     description:
       'A small but genuinely useful web app: find what’s open on campus right now, see menus, and check how busy each spot is. Started as a weekend project and people keep asking for it, so I want to take it further. Easy, fun project to jump into.',
     numOfMembers: '2-4',
