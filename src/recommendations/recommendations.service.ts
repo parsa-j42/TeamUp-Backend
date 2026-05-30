@@ -15,10 +15,15 @@ interface GeminiRecommendation {
   reasons: string[]; // Expecting short keywords
 }
 
+// Default recommendation model. Override with the GEMINI_MODEL env var to
+// switch between Gemma and Gemini models without code changes.
+const DEFAULT_MODEL = 'gemma-4-26b-a4b-it';
+
 @Injectable()
 export class RecommendationsService {
   private readonly logger = new Logger(RecommendationsService.name);
   private genAI: GoogleGenerativeAI | null = null;
+  private readonly model: string;
   private generationConfig: GenerationConfig; // Define type
   private safetySettings: SafetySetting[]; // Define type
 
@@ -36,18 +41,25 @@ export class RecommendationsService {
       this.logger.error('GEMINI_API_KEY is not configured. Recommendations will not work.');
     }
 
+    this.model = this.configService.get<string>('GEMINI_MODEL') ?? DEFAULT_MODEL;
+    this.logger.log(`Recommendations model: ${this.model}`);
+
     // Define generation config and safety settings here
-    this.generationConfig = {
+    const generationConfig: Record<string, unknown> = {
       temperature: 0.3,
       topK: 1,
       topP: 1,
       maxOutputTokens: 8192,
       responseMimeType: "application/json",
-      // gemini-3.x flash is a "thinking" model; reasoning tokens count against
-      // maxOutputTokens and were truncating the JSON. Disable thinking for this
-      // deterministic extraction task.
-      thinkingConfig: { thinkingBudget: 0 },
-    } as GenerationConfig;
+    };
+    // Gemini "thinking" models let reasoning tokens eat into maxOutputTokens,
+    // which was truncating the JSON, so we disable thinking for them. Gemma 4
+    // rejects thinkingBudget (400) and can't fully disable thinking anyway, so
+    // we leave it unset when running Gemma.
+    if (!this.model.startsWith('gemma')) {
+      generationConfig.thinkingConfig = { thinkingBudget: 0 };
+    }
+    this.generationConfig = generationConfig as GenerationConfig;
     this.safetySettings = [
       { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
       { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
@@ -136,7 +148,7 @@ export class RecommendationsService {
       this.logger.log(`Sending request to Gemini for user ${user.id}...`);
       // Pass config and safety settings during model initialization
       const model = this.genAI.getGenerativeModel({
-        model: "gemini-3.5-flash",
+        model: this.model,
         generationConfig: this.generationConfig,
         safetySettings: this.safetySettings,
       });
@@ -199,8 +211,11 @@ export class RecommendationsService {
       return finalRecommendations;
 
     } catch (error) {
+      // Recommendations are a non-critical enhancement, so an AI outage
+      // (quota exhausted, malformed response, etc.) degrades to an empty
+      // list rather than failing the Discover page with a 500.
       this.logger.error(`Gemini API call failed for user ${user.id}: ${error.message}`, error.stack);
-      throw new InternalServerErrorException('Failed to get recommendations from AI service.');
+      return [];
     }
   }
 }
